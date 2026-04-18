@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>英単語ラクラク記憶ツール</title>
+  
+  <!-- PWA & iOS Home Screen Settings -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="単語記憶">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzI1NjNlYiIgcng9IjIyIi8+PHRleHQgeD0iNTAiIHk9IjY4IiBmb250LXNpemU9IjU1IiBmaWxsPSJ3aGl0ZSIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIj5BPC90ZXh0Pjwvc3ZnPg==">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script>
+    // PWA Manifestを動的に生成して適用
+    const manifestJSON = {
+      "name": "英単語ラクラク記憶ツール",
+      "short_name": "単語記憶",
+      "start_url": ".",
+      "display": "standalone",
+      "background_color": "#f9fafb",
+      "theme_color": "#2563eb",
+      "icons": [
+        {
+          "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzI1NjNlYiIgcng9IjIyIi8+PHRleHQgeD0iNTAiIHk9IjY4IiBmb250LXNpemU9IjU1IiBmaWxsPSJ3aGl0ZSIgZm9udC13ZWlnaHQ9ImJvbGQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIj5BPC90ZXh0Pjwvc3ZnPg==",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    };
+    const manifestBlob = new Blob([JSON.stringify(manifestJSON)], {type: 'application/json'});
+    const manifestURL = URL.createObjectURL(manifestBlob);
+    document.write(`<link rel="manifest" href="${manifestURL}">`);
+
+    // オフラインキャッシュ用疑似ServiceWorkerの登録
+    const swCode = `
+      self.addEventListener('install', e => e.waitUntil(self.skipWaiting()));
+      self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+      self.addEventListener('fetch', e => {}); // オフライン時はブラウザのメモリ・ディスクキャッシュに依存
+    `;
+    try {
+      const swBlob = new Blob([swCode], {type: 'application/javascript'});
+      const swUrl = URL.createObjectURL(swBlob);
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register(swUrl).catch(() => {});
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans h-screen w-screen overflow-hidden selection:bg-blue-200">
+  <div id="app" class="h-full w-full relative"></div>
+
+  <script>
+    /* =========================================
+       State & Data Management
+    ========================================= */
+    let cards = JSON.parse(localStorage.getItem('ankiCards') || '[]');
+    let state = {
+      screen: 'home', // 'home', 'add', 'learn'
+      learnPhase: 'question', // 'question', 'answer'
+      displayMode: 'hidden_target', // 'hidden_all', 'hidden_target', 'show_all'
+      dueCards: [],
+      currentIndex: 0
+    };
+
+    function saveCards() {
+      localStorage.setItem('ankiCards', JSON.stringify(cards));
+    }
+
+    /* =========================================
+       Speech Synthesis (TTS) Setup
+    ========================================= */
+    let voices = [];
+    function populateVoiceList() {
+      voices = window.speechSynthesis.getVoices();
+    }
+    // 初期化と非同期読み込み対応
+    populateVoiceList();
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+      speechSynthesis.onvoiceschanged = populateVoiceList;
+    }
+
+    function playVoice(text) {
+      if (!window.speechSynthesis) return;
+      // 連続再生による詰まりを防止
+      window.speechSynthesis.cancel(); 
+      const utterThis = new SpeechSynthesisUtterance(text);
+      // イギリス英語（en-GB）のネイティブボイスを優先的に検索
+      const gbVoice = voices.find(v => v.lang === 'en-GB' || v.name.includes('UK English') || v.name.includes('British'));
+      if (gbVoice) {
+        utterThis.voice = gbVoice;
+      } else {
+        // 見つからない場合は英語全般でフォールバック
+        const enVoice = voices.find(v => v.lang.startsWith('en'));
+        if (enVoice) utterThis.voice = enVoice;
+      }
+      utterThis.rate = 0.85; // 学習用に少しゆっくり発音
+      window.speechSynthesis.speak(utterThis);
+    }
+
+    /* =========================================
+       Spaced Repetition Logic (簡易SM-2)
+    ========================================= */
+    function formatTime(minutes) {
+      if (minutes < 60) return `${minutes}分`;
+      const days = Math.round(minutes / (24 * 60));
+      if (days < 1) return `1日`;
+      if (days >= 30) return `${Math.round(days/30)}ヶ月`;
+      return `${days}日`;
+    }
+
+    function getNextInterval(card, quality) {
+      // quality: 0(Hard), 1(Good), 2(Easy)
+      if (quality === 0) return 1; // Hard: 1分後
+      if (quality === 1) { // Good
+        if (card.repetition === 0) return 10; // 初回: 10分後
+        if (card.repetition === 1) return 24 * 60; // 2回目: 1日後
+        return Math.round(card.interval * card.easeFactor);
+      }
+      if (quality === 2) { // Easy
+        if (card.repetition === 0) return 24 * 60; // 初回: 1日後
+        return Math.round(card.interval * (card.easeFactor + 0.15) * 1.3);
+      }
+      return 1;
+    }
+
+    function answerCard(quality) {
+      let card = state.dueCards[state.currentIndex];
+      card.interval = getNextInterval(card, quality);
+      
+      if (quality === 0) {
+        card.repetition = 0; // やり直し
+        card.easeFactor = Math.max(1.3, card.easeFactor - 0.2); // ペナルティ
+      } else if (quality === 1) {
+        card.repetition++;
+      } else if (quality === 2) {
+        card.easeFactor += 0.15; // ボーナス
+        card.repetition++;
+      }
+      
+      card.nextReviewDate = Date.now() + card.interval * 60 * 1000;
+      saveCards();
+
+      state.currentIndex++;
+      if (state.currentIndex >= state.dueCards.length) {
+        state.screen = 'home';
+      } else {
+        state.learnPhase = 'question';
+      }
+      render();
+    }
+
+    /* =========================================
+       Controllers
+    ========================================= */
+    function goHome() {
+      state.screen = 'home';
+      render();
+    }
+
+    function goAdd() {
+      state.screen = 'add';
+      render();
+    }
+
+    function startLearning() {
+      const now = Date.now();
+      state.dueCards = cards.filter(c => c.nextReviewDate <= now);
+      // 学習順序をシャッフル
+      state.dueCards.sort(() => Math.random() - 0.5);
+      
+      if (state.dueCards.length === 0) {
+        alert("素晴らしい！現在復習が必要な単語はありません。");
+        return;
+      }
+      
+      state.currentIndex = 0;
+      state.learnPhase = 'question';
+      state.screen = 'learn';
+      render();
+    }
+
+    function showAnswer() {
+      state.learnPhase = 'answer';
+      render();
+      // 答え表示と同時に自動で発音する
+      const card = state.dueCards[state.currentIndex];
+      playVoice(card.word);
+    }
+
+    function setDisplayMode(mode) {
+      state.displayMode = mode;
+      render();
+    }
+
+    function processImport() {
+      const text = document.getElementById('import-text').value;
+      const lines = text.split('\n');
+      let addedCount = 0;
+      
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        // 例: demography /dɪˈmɒɡrəfi/ (人口統計学) : The changing demography of the country. | 国の変化する人口動態は...
+        const match = trimmed.match(/^(.+?)\s*(?:\/([^\/]+)\/)?\s*\(([^)]+)\)\s*[:：]\s*(.*?)\s*[\|｜]\s*(.*)$/);
+        
+        if (match) {
+          cards.push({
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            word: match[1].trim(),
+            phonetics: match[2] ? `/${match[2].trim()}/` : '',
+            meaning: match[3].trim(),
+            english_sentence: match[4].trim(),
+            japanese_sentence: match[5].trim(),
+            repetition: 0,
+            interval: 0,
+            easeFactor: 2.5,
+            nextReviewDate: Date.now() // 即座に復習可能とする
+          });
+          addedCount++;
+        }
+      });
+      
+      if (addedCount > 0) {
+        saveCards();
+        alert(`${addedCount} 件の単語を追加しました！`);
+        goHome();
+      } else {
+        alert("追加できるデータが見つかりませんでした。フォーマットを確認してください。");
+      }
+    }
+
+    function clearData() {
+      if (confirm("本当に全ての単語データを削除しますか？この操作は取り消せません。")) {
+        cards = [];
+        saveCards();
+        alert("データを初期化しました。");
+        goHome();
+      }
+    }
+
+    /* =========================================
+       Rendering Views
+    ========================================= */
+    const appEl = document.getElementById('app');
+
+    function renderHome() {
+      const now = Date.now();
+      const dueCount = cards.filter(c => c.nextReviewDate <= now).length;
+      const totalCount = cards.length;
+      
+      return `
+        <div class="flex flex-col h-full bg-white pb-[env(safe-area-inset-bottom)]">
+          <div class="flex-grow flex flex-col items-center justify-center p-6 space-y-8">
+            <div class="w-24 h-24 bg-blue-600 rounded-3xl shadow-xl flex items-center justify-center transform rotate-3">
+              <span class="text-white text-5xl font-bold font-serif">-A-</span>
+            </div>
+            <div class="text-center">
+              <h1 class="text-2xl font-bold text-gray-900 mb-2">英単語記憶ツール</h1>
+              <p class="text-gray-500">忘却曲線に基づくスマート学習</p>
+            </div>
+            
+            <div class="w-full max-w-sm bg-gray-50 rounded-2xl p-6 shadow-inner border border-gray-100">
+              <div class="flex justify-between items-center mb-4">
+                <span class="text-gray-600 font-medium">復習が必要</span>
+                <span class="text-3xl font-bold ${dueCount > 0 ? 'text-blue-600' : 'text-gray-400'}">${dueCount}</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-2">
+                <div class="bg-blue-600 h-2 rounded-full" style="width: ${totalCount === 0 ? 0 : ((totalCount - dueCount) / totalCount) * 100}%"></div>
+              </div>
+              <div class="text-right text-xs text-gray-400 mt-2">全 ${totalCount} 単語</div>
+            </div>
+
+            <div class="w-full max-w-sm space-y-4 w-full">
+              <button onclick="startLearning()" ${dueCount === 0 ? 'disabled' : ''} 
+                class="w-full py-4 rounded-2xl font-bold text-lg shadow-lg transition-transform active:scale-95 ${dueCount > 0 ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700' : 'bg-gray-200 text-gray-400'}">
+                学習を始める
+              </button>
+              <button onclick="goAdd()" class="w-full py-4 rounded-2xl font-bold text-blue-600 bg-blue-50 border border-blue-100 active:bg-blue-100 transition-colors">
+                単語を追加する
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAdd() {
+      return `
+        <div class="flex flex-col h-full bg-gray-50 pb-[env(safe-area-inset-bottom)]">
+          <header class="flex items-center justify-between p-4 bg-white shadow-sm pt-[max(1rem,env(safe-area-inset-top))]">
+            <h1 class="text-xl font-bold text-gray-800">単語の追加</h1>
+            <button onclick="goHome()" class="p-2 rounded-full bg-gray-100 text-gray-600 active:bg-gray-200">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+          </header>
+          <div class="flex-grow p-4 flex flex-col max-w-lg mx-auto w-full">
+            <p class="text-sm text-gray-600 mb-2 font-medium">以下のフォーマットでペーストしてください</p>
+            <div class="bg-gray-200 p-3 rounded-lg text-xs font-mono mb-4 text-gray-700 overflow-x-auto">
+              demography /dɪˈmɒɡrəfi/ (人口統計学) : The changing demography of the country. | 国の変化する人口動態は...
+            </div>
+            <textarea id="import-text" class="w-full flex-grow p-4 border border-gray-300 rounded-2xl mb-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none shadow-inner" placeholder="ここにテキストを入力..."></textarea>
+            
+            <button onclick="processImport()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg active:bg-blue-700 active:scale-95 transition-all mb-4">
+              データを登録する
+            </button>
+            <button onclick="clearData()" class="text-sm text-red-500 py-2 active:opacity-50">
+              全データを初期化
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function getQuestionHTML(card) {
+      let eng = card.english_sentence;
+      let html = '';
+      
+      if (state.displayMode === 'hidden_all') {
+        eng = eng.replace(/[a-zA-Z]+/g, match => '<span class="text-gray-300 tracking-tighter">_</span>'.repeat(match.length));
+        html = `<p class="text-2xl font-serif text-gray-800 leading-relaxed text-center break-words">${eng}</p>`;
+      } else if (state.displayMode === 'hidden_target') {
+        const wordRegex = new RegExp(`(${card.word})`, 'gi');
+        if (wordRegex.test(eng)) {
+          eng = eng.replace(wordRegex, `<span class="inline-block border-b-4 border-blue-400 px-6 mx-1 text-transparent bg-blue-50 rounded select-none">word</span>`);
+        } else {
+          eng = `<div class="text-xs text-red-400 mb-2">※ターゲット語の完全一致が見つかりません</div>${eng}`;
+        }
+        html = `
+          <p class="text-2xl font-serif text-gray-800 leading-relaxed text-center break-words mb-4">${eng}</p>
+          <p class="text-sm text-gray-500 text-center">${card.japanese_sentence}</p>
+        `;
+      } else {
+        html = `
+          <p class="text-2xl font-serif text-gray-800 leading-relaxed text-center break-words mb-4">${card.english_sentence}</p>
+          <p class="text-sm text-gray-500 text-center mb-6">${card.japanese_sentence}</p>
+          <div class="p-6 bg-blue-50 rounded-2xl text-center shadow-inner border border-blue-100">
+            <p class="font-bold text-blue-900 text-3xl mb-1">${card.word}</p>
+            <p class="text-blue-500 text-sm mb-3 font-mono">${card.phonetics}</p>
+            <p class="text-gray-800 font-medium">${card.meaning}</p>
+          </div>
+        `;
+      }
+      return html;
+    }
+
+    function renderLearn() {
+      const card = state.dueCards[state.currentIndex];
+      const progress = ((state.currentIndex) / state.dueCards.length) * 100;
+      
+      let contentHTML = '';
+      let footerHTML = '';
+
+      if (state.learnPhase === 'question') {
+        contentHTML = `
+          <!-- Mode Toggle -->
+          <div class="flex bg-gray-200 rounded-xl p-1 mb-8 shadow-inner w-full max-w-sm mx-auto">
+            <button onclick="setDisplayMode('hidden_all')" class="flex-1 py-2 rounded-lg text-sm font-medium transition-all ${state.displayMode === 'hidden_all' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}">全非表示</button>
+            <button onclick="setDisplayMode('hidden_target')" class="flex-1 py-2 rounded-lg text-sm font-medium transition-all ${state.displayMode === 'hidden_target' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}">虫食い</button>
+            <button onclick="setDisplayMode('show_all')" class="flex-1 py-2 rounded-lg text-sm font-medium transition-all ${state.displayMode === 'show_all' ? 'bg-white shadow text-blue-600' : 'text-gray-500'}">全表示</button>
+          </div>
+          
+          <!-- Card Content -->
+          <div class="flex-grow flex flex-col justify-center w-full max-w-lg mx-auto px-4">
+            ${getQuestionHTML(card)}
+          </div>
+        `;
+        footerHTML = `
+          <button onclick="showAnswer()" class="w-full bg-blue-600 text-white font-bold text-xl py-5 rounded-2xl shadow-xl active:bg-blue-700 active:scale-[0.98] transition-all max-w-lg mx-auto block">
+            答えを見る
+          </button>
+        `;
+      } else {
+        // Answer Phase
+        contentHTML = `
+          <div class="w-full max-w-lg mx-auto px-4 pb-24 overflow-y-auto h-full pt-4">
+            <div class="flex flex-col items-center mb-8">
+              <h2 class="text-5xl font-extrabold text-gray-900 mb-2">${card.word}</h2>
+              <p class="text-lg text-gray-500 mb-6 font-mono">${card.phonetics}</p>
+              <button onclick="playVoice('${card.word}')" class="p-4 bg-blue-100 text-blue-600 rounded-full shadow hover:bg-blue-200 active:bg-blue-300 transition-colors">
+                <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"/>
+                </svg>
+              </button>
+            </div>
+            
+            <div class="w-full bg-white border border-gray-100 shadow-sm p-5 rounded-2xl mb-4">
+              <span class="inline-block bg-gray-100 text-gray-500 text-xs font-bold px-2 py-1 rounded mb-2">意味</span>
+              <p class="text-xl text-gray-900 font-medium">${card.meaning}</p>
+            </div>
+            
+            <div class="w-full bg-white border border-gray-100 shadow-sm p-5 rounded-2xl">
+              <span class="inline-block bg-gray-100 text-gray-500 text-xs font-bold px-2 py-1 rounded mb-2">例文</span>
+              <p class="text-lg text-gray-900 font-serif leading-relaxed mb-3">${card.english_sentence}</p>
+              <p class="text-sm text-gray-600 border-l-2 border-blue-200 pl-3">${card.japanese_sentence}</p>
+            </div>
+          </div>
+        `;
+        footerHTML = `
+          <div class="flex gap-3 max-w-lg mx-auto w-full">
+            <button onclick="answerCard(0)" class="flex-1 bg-red-50 text-red-700 py-3 rounded-2xl font-bold flex flex-col items-center active:bg-red-100 active:scale-95 transition-all border border-red-100">
+              <span class="text-lg">Hard</span>
+              <span class="text-xs font-medium text-red-400 mt-1">&lt; ${formatTime(getNextInterval(card, 0))}</span>
+            </button>
+            <button onclick="answerCard(1)" class="flex-1 bg-green-50 text-green-700 py-3 rounded-2xl font-bold flex flex-col items-center active:bg-green-100 active:scale-95 transition-all border-2 border-green-500 shadow-md transform -translate-y-1">
+              <span class="text-lg">Good</span>
+              <span class="text-xs font-medium text-green-500 mt-1">${formatTime(getNextInterval(card, 1))}</span>
+            </button>
+            <button onclick="answerCard(2)" class="flex-1 bg-blue-50 text-blue-700 py-3 rounded-2xl font-bold flex flex-col items-center active:bg-blue-100 active:scale-95 transition-all border border-blue-100">
+              <span class="text-lg">Easy</span>
+              <span class="text-xs font-medium text-blue-400 mt-1">${formatTime(getNextInterval(card, 2))}</span>
+            </button>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="flex flex-col h-full bg-gray-50">
+          <!-- Header & Progress -->
+          <header class="bg-white pt-[max(1rem,env(safe-area-inset-top))] shadow-sm z-10 relative">
+            <div class="flex items-center justify-between px-4 py-3">
+              <button onclick="goHome()" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+              </button>
+              <div class="text-sm font-bold text-gray-500">
+                ${state.currentIndex + 1} / ${state.dueCards.length}
+              </div>
+              <div class="w-6"></div> <!-- spacer -->
+            </div>
+            <div class="w-full bg-gray-100 h-1">
+              <div class="bg-blue-500 h-1 transition-all duration-300 ease-out" style="width: ${progress}%"></div>
+            </div>
+          </header>
+
+          <!-- Main Content Area -->
+          <main class="flex-grow flex flex-col relative overflow-hidden">
+            ${contentHTML}
+          </main>
+
+          <!-- Fixed Footer Bottom -->
+          <footer class="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur border-t border-gray-200 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            ${footerHTML}
+          </footer>
+        </div>
+      `;
+    }
+
+    function render() {
+      if (state.screen === 'home') appEl.innerHTML = renderHome();
+      else if (state.screen === 'add') appEl.innerHTML = renderAdd();
+      else if (state.screen === 'learn') appEl.innerHTML = renderLearn();
+    }
+
+    // 初期化描画
+    render();
+  </script>
+</body>
+</html>
