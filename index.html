@@ -3,16 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ANKI Ver. 1.2.3 - Bilingual Vocab Builder</title>
+    <title>ANKI Ver. 1.2.4 - Bilingual Vocab Builder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .card-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
         .hidden { display: none; }
-        .loading-spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px;
-            border-radius: 50%; border-left-color: #3b82f6; animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .btn-srs { transition: all 0.2s ease; }
         .btn-srs:active { transform: scale(0.95); }
     </style>
@@ -23,7 +18,7 @@
         
         <!-- Header -->
         <header class="text-center mb-6">
-            <h1 class="text-2xl font-black text-blue-600 tracking-tighter">ANKI Ver. 1.2.3</h1>
+            <h1 class="text-2xl font-black text-blue-600 tracking-tighter">ANKI Ver. 1.2.4</h1>
             <p class="text-xs text-slate-400 font-bold uppercase">Space Repetition Learning Tool</p>
         </header>
 
@@ -130,18 +125,9 @@
             </div>
         </div>
 
-        <!-- Loading Overlay -->
-        <div id="loading-overlay" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50">
-            <div class="bg-white p-8 rounded-3xl flex flex-col items-center space-y-4 shadow-2xl">
-                <div class="loading-spinner"></div>
-                <p id="loading-status" class="font-bold text-sm">音声生成中 / Generating...</p>
-            </div>
-        </div>
     </div>
 
     <script>
-        const apiKey = ""; // API Key
-        
         // Data Structure
         let db = {
             units: {}, 
@@ -152,7 +138,11 @@
         let sessionQueue = [];
         let currentIndex = 0;
         let currentMode = 'cloze'; // Default mode
-        let audioCache = {};
+
+        // Voices preload
+        window.speechSynthesis.onvoiceschanged = () => {
+            window.speechSynthesis.getVoices();
+        };
 
         // Initialization
         window.addEventListener('DOMContentLoaded', () => {
@@ -210,51 +200,43 @@
             }
         });
 
-        // PCM to WAV Logic
-        function pcmToWav(base64Data, sampleRate = 24000) {
-            const byteCharacters = atob(base64Data);
-            const pcmData = new Uint8Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) pcmData[i] = byteCharacters.charCodeAt(i);
-            const buffer = new ArrayBuffer(44 + pcmData.length);
-            const view = new DataView(buffer);
-            const writeString = (offset, string) => { for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); };
-            writeString(0, 'RIFF'); view.setUint32(4, 36 + pcmData.length, true); writeString(8, 'WAVE');
-            writeString(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
-            view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
-            view.setUint16(32, 2, true); view.setUint16(34, 16, true); writeString(36, 'data');
-            view.setUint32(40, pcmData.length, true);
-            new Uint8Array(buffer).set(pcmData, 44);
-            return new Blob([buffer], { type: 'audio/wav' });
-        }
-
-        async function fetchTTS(text, voice) {
-            const isUK = (voice === 'Gacrux' || voice === 'Algieba');
-            const isJP = (voice === 'Aoede' || voice === 'Charon');
-            
-            let prompt = `Say: ${text}`;
-            if (isUK) {
-                prompt = `Say clearly: ${text}. Please speak in a formal, sophisticated British Received Pronunciation (Oxbridge) accent with clear enunciation.`;
-            } else if (isJP) {
-                prompt = `Say in natural Japanese: ${text}`;
+        // Web Speech API Logic (Offline TTS)
+        function playOfflineTTS(text, voiceSetting) {
+            if (!('speechSynthesis' in window)) {
+                alert("お使いのブラウザは音声読み上げに対応していません。");
+                return;
             }
 
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
-                    model: "gemini-2.5-flash-preview-tts"
-                })
-            });
+            window.speechSynthesis.cancel(); // Stop any ongoing speech
+            const utterance = new SpeechSynthesisUtterance(text);
+            const voices = window.speechSynthesis.getVoices();
             
-            if(!res.ok) {
-                const errText = await res.text();
-                throw new Error(`API Error ${res.status}: ${errText}`);
+            let lang = 'en-US';
+            if (voiceSetting === 'Gacrux' || voiceSetting === 'Algieba') {
+                lang = 'en-GB';
+            } else if (voiceSetting === 'Aoede' || voiceSetting === 'Charon') {
+                lang = 'ja-JP';
             }
-            
-            const json = await res.json();
-            return pcmToWav(json.candidates[0].content.parts[0].inlineData.data);
+            utterance.lang = lang;
+
+            let selectedVoice = null;
+            if (lang === 'en-GB') {
+                // Prioritize Daniel, UK, or GB voices for British accent
+                selectedVoice = voices.find(v => v.lang.includes('en-GB') && (v.name.includes('Daniel') || v.name.includes('UK') || v.name.includes('GB') || v.name.includes('British') || v.name.includes('English (United Kingdom)')));
+                if (!selectedVoice) selectedVoice = voices.find(v => v.lang.includes('en-GB'));
+            } else if (lang === 'ja-JP') {
+                selectedVoice = voices.find(v => v.lang.includes('ja-JP') || v.name.includes('Kyoko') || v.name.includes('Otoya') || v.name.includes('Hattori') || v.name.includes('日本語'));
+            } else {
+                // Default to US English
+                selectedVoice = voices.find(v => v.lang.includes('en-US') && (v.name.includes('Samantha') || v.name.includes('Alex') || v.name.includes('US') || v.name.includes('English (United States)')));
+                if (!selectedVoice) selectedVoice = voices.find(v => v.lang.includes('en-US'));
+            }
+
+            if (selectedVoice) {
+                utterance.voice = selectedVoice;
+            }
+
+            window.speechSynthesis.speak(utterance);
         }
 
         // Logic Implementation
@@ -343,28 +325,7 @@
                 sessionQueue = [...db.units[currentUnitName]].sort(() => Math.random() - 0.5);
             }
 
-            // Audio generation with robust Error Handling
-            document.getElementById('loading-overlay').classList.remove('hidden');
-            audioCache = {};
-            const voice = document.getElementById('voice-select').value;
-            let generationSuccess = true;
-
-            for (let i = 0; i < sessionQueue.length; i++) {
-                document.getElementById('loading-status').textContent = `Audio: ${i+1}/${sessionQueue.length}`;
-                try {
-                    const blob = await fetchTTS(sessionQueue[i].sentence, voice);
-                    audioCache[i] = URL.createObjectURL(blob);
-                } catch(e) { 
-                    console.error("Audio API Error:", e);
-                    alert(`【エラー】音声の生成に失敗しました (カード: ${i+1})\n環境エラー、API制限、または通信環境が原因です。\n\n詳細: ${e.message}`);
-                    generationSuccess = false;
-                    break; // 中断する
-                }
-            }
-
-            document.getElementById('loading-overlay').classList.add('hidden');
-            
-            // 音声が生成されなくても文字での学習はできるように画面遷移する
+            // Immediately switch screens (No Loading Overlay, No API Calls)
             document.getElementById('screen-setup').classList.add('hidden');
             document.getElementById('screen-practice').classList.remove('hidden');
             currentIndex = 0;
@@ -452,18 +413,12 @@
             });
         });
 
-        // Listen Button (iOS Compatibility Fix)
-        document.getElementById('listen-btn').addEventListener('click', async () => {
-            if (audioCache[currentIndex]) {
-                try {
-                    const audio = new Audio(audioCache[currentIndex]);
-                    await audio.play();
-                } catch(e) {
-                    console.error("Audio Playback Error:", e);
-                    alert("音声の再生がブラウザ（またはiOS）によってブロックされました。\nマナーモードの解除等をご確認ください。\n詳細: " + e.message);
-                }
-            } else {
-                alert("このカードの音声は生成されていません。通信エラーの可能性があります。");
+        // Listen Button (Offline Web Speech API)
+        document.getElementById('listen-btn').addEventListener('click', () => {
+            if (currentIndex < sessionQueue.length) {
+                const item = sessionQueue[currentIndex];
+                const voiceSetting = document.getElementById('voice-select').value;
+                playOfflineTTS(item.sentence, voiceSetting);
             }
         });
 
