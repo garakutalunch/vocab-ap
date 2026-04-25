@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ANKI Ver. 1.2 - Bilingual Vocab Builder</title>
+    <title>ANKI Ver. 1.2.2 - Bilingual Vocab Builder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .card-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
@@ -21,13 +21,16 @@
 
     <div id="app" class="max-w-xl mx-auto py-4">
         
+        <!-- Header -->
         <header class="text-center mb-6">
-            <h1 class="text-2xl font-black text-blue-600 tracking-tighter">ANKI Ver. 1.2</h1>
+            <h1 class="text-2xl font-black text-blue-600 tracking-tighter">ANKI Ver. 1.2.2</h1>
             <p class="text-xs text-slate-400 font-bold uppercase">Space Repetition Learning Tool</p>
         </header>
 
+        <!-- Screen 1: Setup / 設定画面 -->
         <div id="screen-setup" class="space-y-4">
             
+            <!-- Unit Management / ユニット管理 -->
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
                 <h2 class="text-sm font-bold mb-3 flex justify-between">
                     <span>学習ユニットの選択 / Select Unit</span>
@@ -40,7 +43,7 @@
                 
                 <div class="flex gap-2 mb-3">
                     <label class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-center py-2 rounded-lg cursor-pointer text-sm font-bold border border-dashed border-slate-300">
-                        📁 ファイル選択 / Open File
+                        📁 ファイル選択 / Open File (.txt)
                         <input type="file" id="file-input" accept=".txt" class="hidden">
                     </label>
                 </div>
@@ -55,6 +58,8 @@
                             <option value="Puck">Puck (US Male)</option>
                             <option value="Gacrux">Gacrux (UK Female)</option>
                             <option value="Algieba">Algieba (UK Male)</option>
+                            <option value="Aoede">Aoede (JP Female)</option>
+                            <option value="Charon">Charon (JP Male)</option>
                         </select>
                     </div>
                     <button id="start-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition-all">
@@ -63,6 +68,7 @@
                 </div>
             </div>
 
+            <!-- Backup Tools -->
             <div class="flex justify-between gap-4 px-2">
                 <button id="export-btn" class="text-xs text-slate-500 hover:text-blue-600">📤 バックアップ / Export Backup</button>
                 <label class="text-xs text-slate-500 hover:text-blue-600 cursor-pointer">
@@ -72,27 +78,34 @@
             </div>
         </div>
 
+        <!-- Screen 2: Practice / 練習画面 -->
         <div id="screen-practice" class="hidden space-y-4">
             <div class="flex items-center justify-between px-2">
-                <button id="back-to-setup" class="text-slate-400 hover:text-slate-800 text-sm">← 戻る / Back</button>
+                <div class="flex gap-3">
+                    <button id="back-to-setup" class="text-slate-400 hover:text-slate-800 text-sm font-bold">← 終了 / Exit</button>
+                    <button id="prev-card-btn" class="text-blue-500 hover:text-blue-700 text-sm font-bold hidden">◀ 前へ / Prev</button>
+                </div>
                 <div id="progress-indicator" class="text-[10px] font-black bg-slate-200 px-3 py-1 rounded-full">0/0</div>
             </div>
 
+            <!-- Display Card -->
             <div class="bg-white p-8 rounded-3xl card-shadow min-h-[250px] flex flex-col items-center justify-center text-center relative border border-slate-100">
                 <div id="display-text" class="text-2xl font-bold leading-relaxed mb-6 break-words w-full"></div>
-                <div id="display-translation" class="text-slate-400 text-sm font-medium mb-6"></div>
+                <div id="display-translation" class="text-slate-400 text-sm font-medium mb-6 min-h-[1.5rem]"></div>
                 
                 <button id="listen-btn" class="bg-blue-50 text-blue-600 p-4 rounded-full transition-colors hover:bg-blue-100 mb-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
                 </button>
             </div>
 
+            <!-- Mode Selector -->
             <div class="grid grid-cols-3 gap-1 p-1 bg-slate-200 rounded-xl text-[10px] font-bold">
-                <button data-mode="all-hidden" class="mode-toggle py-2 rounded-lg bg-white shadow-sm">全部非表示<br>All Hidden</button>
-                <button data-mode="cloze" class="mode-toggle py-2 rounded-lg text-slate-500">虫食い<br>Cloze</button>
+                <button data-mode="all-hidden" class="mode-toggle py-2 rounded-lg text-slate-500">全部非表示<br>All Hidden</button>
+                <button data-mode="cloze" class="mode-toggle py-2 rounded-lg bg-white shadow-sm">虫食い<br>Cloze</button>
                 <button data-mode="hint" class="mode-toggle py-2 rounded-lg text-slate-500">頭文字ヒント<br>Hint</button>
             </div>
 
+            <!-- SRS Buttons (Show after "Show Answer") -->
             <div id="answer-controls" class="space-y-4">
                 <button id="show-answer-btn" class="w-full py-4 bg-slate-800 text-white rounded-2xl font-bold shadow-lg">答えを表示 / Show Answer</button>
                 
@@ -117,10 +130,11 @@
             </div>
         </div>
 
+        <!-- Loading Overlay -->
         <div id="loading-overlay" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50">
             <div class="bg-white p-8 rounded-3xl flex flex-col items-center space-y-4 shadow-2xl">
                 <div class="loading-spinner"></div>
-                <p id="loading-status" class="font-bold text-sm">生成中 / Generating...</p>
+                <p id="loading-status" class="font-bold text-sm">音声生成中 / Generating...</p>
             </div>
         </div>
     </div>
@@ -130,24 +144,28 @@
         
         // Data Structure
         let db = {
-            units: {}, // { "Unit Name": [ {target, sentence, translation, nextReview, ...} ] }
+            units: {}, 
             lastUnit: ""
         };
 
         let currentUnitName = "";
         let sessionQueue = [];
         let currentIndex = 0;
-        let currentMode = 'all-hidden';
+        let currentMode = 'cloze';
         let audioCache = {};
 
         // Initialization
         window.addEventListener('DOMContentLoaded', () => {
             const saved = localStorage.getItem('anki_v12_db');
             if (saved) {
-                db = JSON.parse(saved);
-                updateUnitSelector();
-                if (db.lastUnit && db.units[db.lastUnit]) {
-                    document.getElementById('unit-selector').value = db.lastUnit;
+                try {
+                    db = JSON.parse(saved);
+                    updateUnitSelector();
+                    if (db.lastUnit && db.units[db.lastUnit]) {
+                        document.getElementById('unit-selector').value = db.lastUnit;
+                    }
+                } catch(e) {
+                    console.error("Failed to parse saved data");
                 }
             }
         });
@@ -168,7 +186,7 @@
             });
         }
 
-        // PCM to WAV (Keep existing logic)
+        // PCM to WAV Logic
         function pcmToWav(base64Data, sampleRate = 24000) {
             const byteCharacters = atob(base64Data);
             const pcmData = new Uint8Array(byteCharacters.length);
@@ -187,7 +205,15 @@
 
         async function fetchTTS(text, voice) {
             const isUK = (voice === 'Gacrux' || voice === 'Algieba');
-            const prompt = isUK ? `Say clearly: ${text}. Please speak in a formal, sophisticated British Received Pronunciation (Oxbridge) accent with clear enunciation.` : `Say: ${text}`;
+            const isJP = (voice === 'Aoede' || voice === 'Charon');
+            
+            let prompt = `Say: ${text}`;
+            if (isUK) {
+                prompt = `Say clearly: ${text}. Please speak in a formal, sophisticated British Received Pronunciation (Oxbridge) accent with clear enunciation.`;
+            } else if (isJP) {
+                prompt = `Say in natural Japanese: ${text}`;
+            }
+
             const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -197,6 +223,7 @@
                     model: "gemini-2.5-flash-preview-tts"
                 })
             });
+            if(!res.ok) throw new Error("API Error");
             const json = await res.json();
             return pcmToWav(json.candidates[0].content.parts[0].inlineData.data);
         }
@@ -207,29 +234,72 @@
             const selectedName = document.getElementById('unit-selector').value;
             const text = document.getElementById('word-input').value.trim();
             
-            // Determine active unit
-            currentUnitName = inputName || selectedName || db.lastUnit;
-            if (!currentUnitName) return alert("ユニット名を入力または選択してください。 / Please select a unit.");
+            // Determine active unit (Fallback to "My Unit" if everything is empty)
+            currentUnitName = inputName || selectedName || db.lastUnit || "My Unit";
 
-            // Parse and merge data
+            // Parse and merge data (Improved Parsing Logic)
             if (text) {
-                const lines = text.split('\n').filter(l => l.trim());
+                // Handle different newline characters safely
+                const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
                 const items = lines.map(line => {
-                    const [main, translation] = line.split('/');
-                    const [target, sentence] = main.split(/[:\t,]/);
+                    const match = line.match(/[:\t：]/);
+                    let leftPart = "";
+                    let rightPart = "";
+                    
+                    if (match) {
+                        leftPart = line.substring(0, match.index).trim();
+                        rightPart = line.substring(match.index + 1).trim();
+                    } else {
+                        leftPart = line;
+                        rightPart = line;
+                    }
+                    
+                    let sentence = rightPart;
+                    let translation = "";
+                    const transMatch = rightPart.match(/[|｜\/／]/);
+                    if (transMatch) {
+                        sentence = rightPart.substring(0, transMatch.index).trim();
+                        translation = rightPart.substring(transMatch.index + 1).trim();
+                    }
+
+                    // ターゲット語の純粋な抽出（発音記号やカッコの前まで）
+                    let targetWord = leftPart.split(/[\s/（(]/)[0].trim();
+                    if (!targetWord) targetWord = leftPart;
+
                     return {
-                        target: target?.trim() || "",
-                        sentence: sentence?.trim() || "",
-                        translation: translation?.trim() || "",
+                        targetRaw: leftPart,
+                        targetWord: targetWord,
+                        sentence: sentence,
+                        translation: translation,
                         nextReview: Date.now()
                     };
-                }).filter(i => i.target && i.sentence);
+                }).filter(i => i.sentence.length > 0); // 例文が空でなければ採用
 
-                if (!db.units[currentUnitName]) db.units[currentUnitName] = [];
-                db.units[currentUnitName] = [...db.units[currentUnitName], ...items];
+                if (items.length > 0) {
+                    if (!db.units[currentUnitName]) db.units[currentUnitName] = [];
+                    
+                    // 既存データとの重複を防止
+                    const existingSentences = new Set(db.units[currentUnitName].map(i => i.sentence));
+                    const newItems = items.filter(i => !existingSentences.has(i.sentence));
+                    
+                    if (newItems.length === 0) {
+                        alert("入力されたテキストは既にこのユニットに存在するため、追加されませんでした。 / Text already exists in this unit.");
+                    } else {
+                        db.units[currentUnitName] = [...db.units[currentUnitName], ...newItems];
+                        
+                        // 読み込みが成功したらUIをリセット
+                        document.getElementById('word-input').value = "";
+                        document.getElementById('unit-name-input').value = "";
+                        updateUnitSelector();
+                        document.getElementById('unit-selector').value = currentUnitName;
+                    }
+                }
             }
 
-            if (!db.units[currentUnitName] || db.units[currentUnitName].length === 0) return alert("データがありません。");
+            // データが存在するか最終確認
+            if (!db.units[currentUnitName] || db.units[currentUnitName].length === 0) {
+                return alert("ユニットにデータがありません。テキストエリアに単語を入力するかファイルを選択してください。\nNo valid data found.");
+            }
 
             db.lastUnit = currentUnitName;
             saveData();
@@ -241,7 +311,7 @@
                 .sort(() => Math.random() - 0.5);
 
             if (sessionQueue.length === 0) {
-                if(!confirm("復習対象の単語がありません。全単語を学習しますか？ / No cards due. Study all?")) return;
+                if(!confirm("現在復習が必要な単語はありません。すべての単語を強制的に学習しますか？ / No cards due. Study all?")) return;
                 sessionQueue = [...db.units[currentUnitName]].sort(() => Math.random() - 0.5);
             }
 
@@ -254,7 +324,9 @@
                 try {
                     const blob = await fetchTTS(sessionQueue[i].sentence, voice);
                     audioCache[i] = URL.createObjectURL(blob);
-                } catch(e) { console.error(e); }
+                } catch(e) { 
+                    console.error("Audio API Error:", e);
+                }
             }
 
             document.getElementById('loading-overlay').classList.add('hidden');
@@ -265,23 +337,40 @@
         });
 
         function renderCard(showAnswer = false) {
+            if(currentIndex >= sessionQueue.length) return;
             const item = sessionQueue[currentIndex];
             const display = document.getElementById('display-text');
             const trans = document.getElementById('display-translation');
             
-            trans.innerText = (currentMode === 'hint' || showAnswer) ? item.translation : "";
+            // 常に和訳を表示する
+            trans.innerText = item.translation || "";
             
+            // 戻るボタンの表示制御
+            document.getElementById('prev-card-btn').classList.toggle('hidden', currentIndex === 0);
+
             if (showAnswer) {
-                display.innerText = item.sentence;
+                // 答え表示時は、単語の詳細情報と例文の両方を表示
+                display.innerHTML = `<div class="text-lg text-blue-600 mb-2">${item.targetRaw}</div><div>${item.sentence}</div>`;
             } else {
+                const target = item.targetWord;
+                const escapedTarget = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regexNoBound = new RegExp(escapedTarget, 'gi');
+
                 if (currentMode === 'all-hidden') {
-                    display.innerText = item.sentence.replace(/[a-zA-Z0-9]/g, '_');
+                    // 単語のみ下線表示（例文なし）
+                    display.innerText = `[ ${'_'.repeat(target.length)} ]`;
                 } else if (currentMode === 'cloze') {
-                    const regex = new RegExp(item.target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-                    display.innerText = item.sentence.replace(regex, (m) => `[ ${'_'.repeat(m.length)} ]`);
+                    if(target === item.sentence) {
+                        display.innerText = `[ ${'_'.repeat(target.length)} ]`;
+                    } else {
+                        display.innerText = item.sentence.replace(regexNoBound, (m) => `[ ${'_'.repeat(m.length)} ]`);
+                    }
                 } else if (currentMode === 'hint') {
-                    const regex = new RegExp(item.target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-                    display.innerText = item.sentence.replace(regex, (m) => `${m[0]}${'_'.repeat(m.length-1)}`);
+                    if(target === item.sentence) {
+                        display.innerText = `[ ${target[0]}${'_'.repeat(target.length - 1)} ]`;
+                    } else {
+                        display.innerText = item.sentence.replace(regexNoBound, (m) => `[ ${m[0]}${'_'.repeat(m.length-1)} ]`);
+                    }
                 }
             }
 
@@ -307,12 +396,20 @@
 
                 currentIndex++;
                 if (currentIndex >= sessionQueue.length) {
-                    alert("セッション終了！ / Session Finished!");
+                    alert("セッション完了！お疲れ様でした。 / Session Finished!");
                     location.reload();
                 } else {
                     renderCard();
                 }
             });
+        });
+
+        // Prev Button
+        document.getElementById('prev-card-btn').addEventListener('click', () => {
+            if (currentIndex > 0) {
+                currentIndex--;
+                renderCard();
+            }
         });
 
         // Mode Toggles
@@ -329,7 +426,10 @@
 
         // Listen
         document.getElementById('listen-btn').addEventListener('click', () => {
-            if (audioCache[currentIndex]) new Audio(audioCache[currentIndex]).play();
+            if (audioCache[currentIndex]) {
+                const audio = new Audio(audioCache[currentIndex]);
+                audio.play();
+            }
         });
 
         // File Input Handling
@@ -347,6 +447,7 @@
 
         // Backup & Restore
         document.getElementById('export-btn').addEventListener('click', () => {
+            if(Object.keys(db.units).length === 0) return alert("エクスポートするデータがありません / No data to export");
             const blob = new Blob([JSON.stringify(db)], {type: 'application/json'});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -360,11 +461,17 @@
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
-                    db = JSON.parse(e.target.result);
-                    saveData();
-                    updateUnitSelector();
-                    alert("復元完了 / Restore Success");
-                } catch(err) { alert("無効なファイルです / Invalid File"); }
+                    const importedDB = JSON.parse(e.target.result);
+                    if(importedDB && importedDB.units) {
+                        db = importedDB;
+                        saveData();
+                        updateUnitSelector();
+                        alert("復元完了 / Restore Success");
+                        location.reload();
+                    } else {
+                        throw new Error("Invalid structure");
+                    }
+                } catch(err) { alert("無効なファイル形式です / Invalid File Format"); }
             };
             reader.readAsText(file);
         });
@@ -375,6 +482,7 @@
                 delete db.units[name];
                 saveData();
                 updateUnitSelector();
+                if(Object.keys(db.units).length === 0) db.lastUnit = "";
             }
         });
 
