@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ANKI Ver. 1.2.2 - Bilingual Vocab Builder</title>
+    <title>ANKI Ver. 1.2.3 - Bilingual Vocab Builder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .card-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
@@ -23,7 +23,7 @@
         
         <!-- Header -->
         <header class="text-center mb-6">
-            <h1 class="text-2xl font-black text-blue-600 tracking-tighter">ANKI Ver. 1.2.2</h1>
+            <h1 class="text-2xl font-black text-blue-600 tracking-tighter">ANKI Ver. 1.2.3</h1>
             <p class="text-xs text-slate-400 font-bold uppercase">Space Repetition Learning Tool</p>
         </header>
 
@@ -39,7 +39,7 @@
                 <select id="unit-selector" class="w-full p-3 border rounded-lg bg-slate-50 mb-4 focus:ring-2 focus:ring-blue-500 outline-none"></select>
 
                 <h2 class="text-sm font-bold mb-2">新規登録・追加 / Register & Add</h2>
-                <input type="text" id="unit-name-input" placeholder="ユニット名 (例: Unit 1) / Unit Name" class="w-full p-3 border rounded-lg mb-3 outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="unit-name-input" placeholder="新しいユニット名を入力 / New Unit Name" class="w-full p-3 border rounded-lg mb-3 outline-none focus:ring-2 focus:ring-blue-500">
                 
                 <div class="flex gap-2 mb-3">
                     <label class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-center py-2 rounded-lg cursor-pointer text-sm font-bold border border-dashed border-slate-300">
@@ -151,7 +151,7 @@
         let currentUnitName = "";
         let sessionQueue = [];
         let currentIndex = 0;
-        let currentMode = 'cloze';
+        let currentMode = 'cloze'; // Default mode
         let audioCache = {};
 
         // Initialization
@@ -178,6 +178,13 @@
         function updateUnitSelector() {
             const selector = document.getElementById('unit-selector');
             selector.innerHTML = '';
+            
+            // Add an empty option to allow deselecting
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = "";
+            emptyOpt.textContent = "--- 選択してください ---";
+            selector.appendChild(emptyOpt);
+
             Object.keys(db.units).forEach(name => {
                 const opt = document.createElement('option');
                 opt.value = name;
@@ -185,6 +192,23 @@
                 selector.appendChild(opt);
             });
         }
+
+        // Unit Selection Sync Logic
+        document.getElementById('unit-selector').addEventListener('change', (e) => {
+            // 既存のユニットが選ばれたら、新規入力欄を空にする（混乱を防ぐため）
+            if (e.target.value !== "") {
+                document.getElementById('unit-name-input').value = "";
+                db.lastUnit = e.target.value;
+                saveData();
+            }
+        });
+
+        document.getElementById('unit-name-input').addEventListener('input', (e) => {
+            // 新規入力欄に入力があったら、プルダウンの選択を解除する
+            if (e.target.value.trim() !== "") {
+                document.getElementById('unit-selector').value = "";
+            }
+        });
 
         // PCM to WAV Logic
         function pcmToWav(base64Data, sampleRate = 24000) {
@@ -223,7 +247,12 @@
                     model: "gemini-2.5-flash-preview-tts"
                 })
             });
-            if(!res.ok) throw new Error("API Error");
+            
+            if(!res.ok) {
+                const errText = await res.text();
+                throw new Error(`API Error ${res.status}: ${errText}`);
+            }
+            
             const json = await res.json();
             return pcmToWav(json.candidates[0].content.parts[0].inlineData.data);
         }
@@ -234,12 +263,15 @@
             const selectedName = document.getElementById('unit-selector').value;
             const text = document.getElementById('word-input').value.trim();
             
-            // Determine active unit (Fallback to "My Unit" if everything is empty)
-            currentUnitName = inputName || selectedName || db.lastUnit || "My Unit";
+            // Determine active unit
+            currentUnitName = inputName || selectedName;
+            
+            if (!currentUnitName) {
+                return alert("ユニット名を入力または選択してください。 / Please enter or select a unit name.");
+            }
 
-            // Parse and merge data (Improved Parsing Logic)
+            // Parse and merge data
             if (text) {
-                // Handle different newline characters safely
                 const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
                 const items = lines.map(line => {
                     const match = line.match(/[:\t：]/);
@@ -262,7 +294,6 @@
                         translation = rightPart.substring(transMatch.index + 1).trim();
                     }
 
-                    // ターゲット語の純粋な抽出（発音記号やカッコの前まで）
                     let targetWord = leftPart.split(/[\s/（(]/)[0].trim();
                     if (!targetWord) targetWord = leftPart;
 
@@ -273,21 +304,18 @@
                         translation: translation,
                         nextReview: Date.now()
                     };
-                }).filter(i => i.sentence.length > 0); // 例文が空でなければ採用
+                }).filter(i => i.sentence.length > 0); 
 
                 if (items.length > 0) {
                     if (!db.units[currentUnitName]) db.units[currentUnitName] = [];
                     
-                    // 既存データとの重複を防止
                     const existingSentences = new Set(db.units[currentUnitName].map(i => i.sentence));
                     const newItems = items.filter(i => !existingSentences.has(i.sentence));
                     
-                    if (newItems.length === 0) {
-                        alert("入力されたテキストは既にこのユニットに存在するため、追加されませんでした。 / Text already exists in this unit.");
-                    } else {
+                    if (newItems.length === 0 && document.getElementById('word-input').value.trim() !== "") {
+                        alert("入力されたテキストは既にこのユニットに存在するため、追加されませんでした。");
+                    } else if (newItems.length > 0) {
                         db.units[currentUnitName] = [...db.units[currentUnitName], ...newItems];
-                        
-                        // 読み込みが成功したらUIをリセット
                         document.getElementById('word-input').value = "";
                         document.getElementById('unit-name-input').value = "";
                         updateUnitSelector();
@@ -296,15 +324,15 @@
                 }
             }
 
-            // データが存在するか最終確認
+            // Check Data
             if (!db.units[currentUnitName] || db.units[currentUnitName].length === 0) {
-                return alert("ユニットにデータがありません。テキストエリアに単語を入力するかファイルを選択してください。\nNo valid data found.");
+                return alert(`ユニット「${currentUnitName}」にデータがありません。\nNo valid data found in this unit.`);
             }
 
             db.lastUnit = currentUnitName;
             saveData();
 
-            // Prepare session (SRS: only items due)
+            // Prepare session
             const now = Date.now();
             sessionQueue = db.units[currentUnitName]
                 .filter(item => item.nextReview <= now)
@@ -315,10 +343,12 @@
                 sessionQueue = [...db.units[currentUnitName]].sort(() => Math.random() - 0.5);
             }
 
-            // Audio generation
+            // Audio generation with robust Error Handling
             document.getElementById('loading-overlay').classList.remove('hidden');
             audioCache = {};
             const voice = document.getElementById('voice-select').value;
+            let generationSuccess = true;
+
             for (let i = 0; i < sessionQueue.length; i++) {
                 document.getElementById('loading-status').textContent = `Audio: ${i+1}/${sessionQueue.length}`;
                 try {
@@ -326,10 +356,15 @@
                     audioCache[i] = URL.createObjectURL(blob);
                 } catch(e) { 
                     console.error("Audio API Error:", e);
+                    alert(`【エラー】音声の生成に失敗しました (カード: ${i+1})\n環境エラー、API制限、または通信環境が原因です。\n\n詳細: ${e.message}`);
+                    generationSuccess = false;
+                    break; // 中断する
                 }
             }
 
             document.getElementById('loading-overlay').classList.add('hidden');
+            
+            // 音声が生成されなくても文字での学習はできるように画面遷移する
             document.getElementById('screen-setup').classList.add('hidden');
             document.getElementById('screen-practice').classList.remove('hidden');
             currentIndex = 0;
@@ -342,14 +377,10 @@
             const display = document.getElementById('display-text');
             const trans = document.getElementById('display-translation');
             
-            // 常に和訳を表示する
             trans.innerText = item.translation || "";
-            
-            // 戻るボタンの表示制御
             document.getElementById('prev-card-btn').classList.toggle('hidden', currentIndex === 0);
 
             if (showAnswer) {
-                // 答え表示時は、単語の詳細情報と例文の両方を表示
                 display.innerHTML = `<div class="text-lg text-blue-600 mb-2">${item.targetRaw}</div><div>${item.sentence}</div>`;
             } else {
                 const target = item.targetWord;
@@ -357,7 +388,6 @@
                 const regexNoBound = new RegExp(escapedTarget, 'gi');
 
                 if (currentMode === 'all-hidden') {
-                    // 単語のみ下線表示（例文なし）
                     display.innerText = `[ ${'_'.repeat(target.length)} ]`;
                 } else if (currentMode === 'cloze') {
                     if(target === item.sentence) {
@@ -387,8 +417,7 @@
                 const interval = parseInt(btn.dataset.interval);
                 const item = sessionQueue[currentIndex];
                 
-                // Update the real DB reference
-                const dbItem = db.units[currentUnitName].find(i => i.sentence === item.sentence && i.target === item.target);
+                const dbItem = db.units[currentUnitName].find(i => i.sentence === item.sentence && i.targetRaw === item.targetRaw);
                 if (dbItem) {
                     dbItem.nextReview = Date.now() + (interval * 1000);
                     saveData();
@@ -404,7 +433,6 @@
             });
         });
 
-        // Prev Button
         document.getElementById('prev-card-btn').addEventListener('click', () => {
             if (currentIndex > 0) {
                 currentIndex--;
@@ -424,15 +452,22 @@
             });
         });
 
-        // Listen
-        document.getElementById('listen-btn').addEventListener('click', () => {
+        // Listen Button (iOS Compatibility Fix)
+        document.getElementById('listen-btn').addEventListener('click', async () => {
             if (audioCache[currentIndex]) {
-                const audio = new Audio(audioCache[currentIndex]);
-                audio.play();
+                try {
+                    const audio = new Audio(audioCache[currentIndex]);
+                    await audio.play();
+                } catch(e) {
+                    console.error("Audio Playback Error:", e);
+                    alert("音声の再生がブラウザ（またはiOS）によってブロックされました。\nマナーモードの解除等をご確認ください。\n詳細: " + e.message);
+                }
+            } else {
+                alert("このカードの音声は生成されていません。通信エラーの可能性があります。");
             }
         });
 
-        // File Input Handling
+        // File Input
         document.getElementById('file-input').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -441,6 +476,7 @@
                 document.getElementById('word-input').value = e.target.result;
                 const name = file.name.replace('.txt', '');
                 document.getElementById('unit-name-input').value = name;
+                document.getElementById('unit-selector').value = ""; // Deselect dropdown
             };
             reader.readAsText(file);
         });
@@ -476,13 +512,24 @@
             reader.readAsText(file);
         });
 
+        // Exact Delete Logic
         document.getElementById('delete-unit-btn').addEventListener('click', () => {
-            const name = document.getElementById('unit-selector').value;
-            if (name && confirm(`「${name}」を削除しますか？ / Delete this unit?`)) {
-                delete db.units[name];
+            const inputName = document.getElementById('unit-name-input').value.trim();
+            const selectedName = document.getElementById('unit-selector').value;
+            const nameToDelete = inputName || selectedName;
+
+            if (nameToDelete && confirm(`「${nameToDelete}」を削除しますか？ / Delete this unit?`)) {
+                delete db.units[nameToDelete];
                 saveData();
+                
+                document.getElementById('unit-name-input').value = "";
                 updateUnitSelector();
-                if(Object.keys(db.units).length === 0) db.lastUnit = "";
+                
+                if(Object.keys(db.units).length === 0) {
+                    db.lastUnit = "";
+                }
+            } else if (!nameToDelete) {
+                alert("削除するユニットが選択されていません。プルダウンから選択してください。");
             }
         });
 
