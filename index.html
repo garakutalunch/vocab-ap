@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ANKI Ver. 1.2.4 - Bilingual Vocab Builder</title>
+    <title>ANKI Ver. 1.2.5 - Bilingual Vocab Builder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .card-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
@@ -18,7 +18,7 @@
         
         <!-- Header -->
         <header class="text-center mb-6">
-            <h1 class="text-2xl font-black text-blue-600 tracking-tighter">ANKI Ver. 1.2.4</h1>
+            <h1 class="text-2xl font-black text-blue-600 tracking-tighter">ANKI Ver. 1.2.5</h1>
             <p class="text-xs text-slate-400 font-bold uppercase">Space Repetition Learning Tool</p>
         </header>
 
@@ -138,6 +138,7 @@
         let sessionQueue = [];
         let currentIndex = 0;
         let currentMode = 'cloze'; // Default mode
+        let isAnswerShown = false;
 
         // Voices preload
         window.speechSynthesis.onvoiceschanged = () => {
@@ -158,9 +159,94 @@
                     console.error("Failed to parse saved data");
                 }
             }
+
+            // セッションの復元を試みる
+            const resumed = resumeSessionState();
+            if (!resumed) {
+                showSetupScreen();
+            }
         });
 
-        // UI Helpers
+        // ページを離れる直前にもセッションを保存
+        window.addEventListener('beforeunload', () => {
+            if (!document.getElementById('screen-practice').classList.contains('hidden')) {
+                saveSessionState();
+            }
+        });
+
+        // UI Transition Helpers
+        function showSetupScreen() {
+            document.getElementById('screen-practice').classList.add('hidden');
+            document.getElementById('screen-setup').classList.remove('hidden');
+            updateUnitSelector();
+        }
+
+        function showPracticeScreen() {
+            document.getElementById('screen-setup').classList.add('hidden');
+            document.getElementById('screen-practice').classList.remove('hidden');
+        }
+
+        // Session State Management
+        function saveSessionState() {
+            const isPracticeScreenActive = !document.getElementById('screen-practice').classList.contains('hidden');
+            if (!isPracticeScreenActive) return;
+
+            const sessionData = {
+                currentUnitName,
+                sessionQueue,
+                currentIndex,
+                currentMode,
+                isAnswerShown
+            };
+            localStorage.setItem('anki_v12_session', JSON.stringify(sessionData));
+        }
+
+        function clearSessionState() {
+            localStorage.removeItem('anki_v12_session');
+        }
+
+        function resumeSessionState() {
+            const savedSessionStr = localStorage.getItem('anki_v12_session');
+            if (savedSessionStr) {
+                try {
+                    const sessionData = JSON.parse(savedSessionStr);
+                    // 保存データが有効かチェック
+                    if (sessionData.sessionQueue && sessionData.sessionQueue.length > 0 && sessionData.currentIndex < sessionData.sessionQueue.length) {
+                        if (confirm("学習途中のデータがあります。前回の続きから再開しますか？\nResume previous session?")) {
+                            currentUnitName = sessionData.currentUnitName;
+                            sessionQueue = sessionData.sessionQueue;
+                            currentIndex = sessionData.currentIndex;
+                            currentMode = sessionData.currentMode || 'cloze';
+                            isAnswerShown = sessionData.isAnswerShown || false;
+                            
+                            // モードボタンのUIを復元
+                            document.querySelectorAll('.mode-toggle').forEach(b => {
+                                b.classList.remove('bg-white', 'shadow-sm'); 
+                                b.classList.add('text-slate-500');
+                                if (b.dataset.mode === currentMode) {
+                                    b.classList.add('bg-white', 'shadow-sm'); 
+                                    b.classList.remove('text-slate-500');
+                                }
+                            });
+
+                            showPracticeScreen();
+                            renderCard(isAnswerShown);
+                            return true; // 復元成功
+                        } else {
+                            clearSessionState();
+                        }
+                    } else {
+                        clearSessionState();
+                    }
+                } catch(e) {
+                    console.error("Failed to parse session state", e);
+                    clearSessionState();
+                }
+            }
+            return false; // 復元なし
+        }
+
+        // Database Helpers
         function saveData() {
             localStorage.setItem('anki_v12_db', JSON.stringify(db));
         }
@@ -169,7 +255,6 @@
             const selector = document.getElementById('unit-selector');
             selector.innerHTML = '';
             
-            // Add an empty option to allow deselecting
             const emptyOpt = document.createElement('option');
             emptyOpt.value = "";
             emptyOpt.textContent = "--- 選択してください ---";
@@ -181,11 +266,14 @@
                 opt.textContent = name;
                 selector.appendChild(opt);
             });
+            
+            if (db.lastUnit && db.units[db.lastUnit]) {
+                selector.value = db.lastUnit;
+            }
         }
 
         // Unit Selection Sync Logic
         document.getElementById('unit-selector').addEventListener('change', (e) => {
-            // 既存のユニットが選ばれたら、新規入力欄を空にする（混乱を防ぐため）
             if (e.target.value !== "") {
                 document.getElementById('unit-name-input').value = "";
                 db.lastUnit = e.target.value;
@@ -194,7 +282,6 @@
         });
 
         document.getElementById('unit-name-input').addEventListener('input', (e) => {
-            // 新規入力欄に入力があったら、プルダウンの選択を解除する
             if (e.target.value.trim() !== "") {
                 document.getElementById('unit-selector').value = "";
             }
@@ -207,27 +294,23 @@
                 return;
             }
 
-            window.speechSynthesis.cancel(); // Stop any ongoing speech
+            window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(text);
             const voices = window.speechSynthesis.getVoices();
             
             let lang = 'en-US';
-            if (voiceSetting === 'Gacrux' || voiceSetting === 'Algieba') {
-                lang = 'en-GB';
-            } else if (voiceSetting === 'Aoede' || voiceSetting === 'Charon') {
-                lang = 'ja-JP';
-            }
+            if (voiceSetting === 'Gacrux' || voiceSetting === 'Algieba') lang = 'en-GB';
+            else if (voiceSetting === 'Aoede' || voiceSetting === 'Charon') lang = 'ja-JP';
+            
             utterance.lang = lang;
 
             let selectedVoice = null;
             if (lang === 'en-GB') {
-                // Prioritize Daniel, UK, or GB voices for British accent
                 selectedVoice = voices.find(v => v.lang.includes('en-GB') && (v.name.includes('Daniel') || v.name.includes('UK') || v.name.includes('GB') || v.name.includes('British') || v.name.includes('English (United Kingdom)')));
                 if (!selectedVoice) selectedVoice = voices.find(v => v.lang.includes('en-GB'));
             } else if (lang === 'ja-JP') {
                 selectedVoice = voices.find(v => v.lang.includes('ja-JP') || v.name.includes('Kyoko') || v.name.includes('Otoya') || v.name.includes('Hattori') || v.name.includes('日本語'));
             } else {
-                // Default to US English
                 selectedVoice = voices.find(v => v.lang.includes('en-US') && (v.name.includes('Samantha') || v.name.includes('Alex') || v.name.includes('US') || v.name.includes('English (United States)')));
                 if (!selectedVoice) selectedVoice = voices.find(v => v.lang.includes('en-US'));
             }
@@ -239,13 +322,12 @@
             window.speechSynthesis.speak(utterance);
         }
 
-        // Logic Implementation
-        document.getElementById('start-btn').addEventListener('click', async () => {
+        // Logic Implementation (Start Practice)
+        document.getElementById('start-btn').addEventListener('click', () => {
             const inputName = document.getElementById('unit-name-input').value.trim();
             const selectedName = document.getElementById('unit-selector').value;
             const text = document.getElementById('word-input').value.trim();
             
-            // Determine active unit
             currentUnitName = inputName || selectedName;
             
             if (!currentUnitName) {
@@ -325,14 +407,15 @@
                 sessionQueue = [...db.units[currentUnitName]].sort(() => Math.random() - 0.5);
             }
 
-            // Immediately switch screens (No Loading Overlay, No API Calls)
-            document.getElementById('screen-setup').classList.add('hidden');
-            document.getElementById('screen-practice').classList.remove('hidden');
             currentIndex = 0;
-            renderCard();
+            isAnswerShown = false;
+            
+            showPracticeScreen();
+            renderCard(false);
         });
 
         function renderCard(showAnswer = false) {
+            isAnswerShown = showAnswer;
             if(currentIndex >= sessionQueue.length) return;
             const item = sessionQueue[currentIndex];
             const display = document.getElementById('display-text');
@@ -368,6 +451,9 @@
             document.getElementById('progress-indicator').textContent = `${currentIndex + 1} / ${sessionQueue.length}`;
             document.getElementById('show-answer-btn').classList.toggle('hidden', showAnswer);
             document.getElementById('srs-buttons').classList.toggle('hidden', !showAnswer);
+            
+            // 状態が変化するたびにセッションを保存
+            saveSessionState();
         }
 
         // Event Listeners for SRS
@@ -387,9 +473,10 @@
                 currentIndex++;
                 if (currentIndex >= sessionQueue.length) {
                     alert("セッション完了！お疲れ様でした。 / Session Finished!");
-                    location.reload();
+                    clearSessionState();
+                    showSetupScreen();
                 } else {
-                    renderCard();
+                    renderCard(false);
                 }
             });
         });
@@ -397,7 +484,7 @@
         document.getElementById('prev-card-btn').addEventListener('click', () => {
             if (currentIndex > 0) {
                 currentIndex--;
-                renderCard();
+                renderCard(false);
             }
         });
 
@@ -409,7 +496,7 @@
                     b.classList.remove('bg-white', 'shadow-sm'); b.classList.add('text-slate-500');
                 });
                 btn.classList.add('bg-white', 'shadow-sm'); btn.classList.remove('text-slate-500');
-                renderCard();
+                renderCard(isAnswerShown);
             });
         });
 
@@ -431,7 +518,7 @@
                 document.getElementById('word-input').value = e.target.result;
                 const name = file.name.replace('.txt', '');
                 document.getElementById('unit-name-input').value = name;
-                document.getElementById('unit-selector').value = ""; // Deselect dropdown
+                document.getElementById('unit-selector').value = ""; 
             };
             reader.readAsText(file);
         });
@@ -457,8 +544,9 @@
                         db = importedDB;
                         saveData();
                         updateUnitSelector();
+                        clearSessionState();
+                        showSetupScreen();
                         alert("復元完了 / Restore Success");
-                        location.reload();
                     } else {
                         throw new Error("Invalid structure");
                     }
@@ -488,7 +576,13 @@
             }
         });
 
-        document.getElementById('back-to-setup').addEventListener('click', () => location.reload());
+        // Exit Practice mode
+        document.getElementById('back-to-setup').addEventListener('click', () => {
+            if (confirm("学習を中断して設定画面に戻りますか？\n(進捗は保存されます) / Exit to setup?")) {
+                saveSessionState();
+                showSetupScreen();
+            }
+        });
 
     </script>
 </body>
