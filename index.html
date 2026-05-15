@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ANKI Ver. 1.2.5 - Bilingual Vocab Builder</title>
+    <title>ANKI Ver. 1.2.8 - Bilingual Vocab Builder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .card-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
         .btn-srs { transition: all 0.2s ease; }
         .btn-srs:active { transform: scale(0.95); }
     </style>
@@ -18,7 +18,7 @@
         
         <!-- Header -->
         <header class="text-center mb-6">
-            <h1 class="text-2xl font-black text-blue-600 tracking-tighter">ANKI Ver. 1.2.5</h1>
+            <h1 class="text-2xl font-black text-blue-600 tracking-tighter">ANKI Ver. 1.2.8</h1>
             <p class="text-xs text-slate-400 font-bold uppercase">Space Repetition Learning Tool</p>
         </header>
 
@@ -63,8 +63,21 @@
                 </div>
             </div>
 
+            <!-- Mastered Management / 習得済み管理 -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="text-sm font-bold mb-3 text-slate-700">習得済みリスト管理 / Mastered List</h2>
+                <div class="flex flex-col gap-2">
+                    <button id="export-mastered-btn" class="w-full bg-amber-50 text-amber-700 border border-amber-200 py-2.5 rounded-lg text-sm font-bold hover:bg-amber-100 transition-colors">
+                        習得済みリストを書き出す / Export Mastered List
+                    </button>
+                    <button id="review-mastered-btn" class="w-full bg-slate-50 text-slate-700 border border-slate-200 py-2.5 rounded-lg text-sm font-bold hover:bg-slate-100 transition-colors">
+                        リストを確認・解除する / Review & Unmaster
+                    </button>
+                </div>
+            </div>
+
             <!-- Backup Tools -->
-            <div class="flex justify-between gap-4 px-2">
+            <div class="flex justify-between gap-4 px-2 pb-8">
                 <button id="export-btn" class="text-xs text-slate-500 hover:text-blue-600">📤 バックアップ / Export Backup</button>
                 <label class="text-xs text-slate-500 hover:text-blue-600 cursor-pointer">
                     📥 復元 / Restore Import
@@ -74,8 +87,8 @@
         </div>
 
         <!-- Screen 2: Practice / 練習画面 -->
-        <div id="screen-practice" class="hidden space-y-4">
-            <div class="flex items-center justify-between px-2">
+        <div id="screen-practice" class="hidden flex flex-col min-h-[85vh]">
+            <div class="flex items-center justify-between px-2 mb-4">
                 <div class="flex gap-3">
                     <button id="back-to-setup" class="text-slate-400 hover:text-slate-800 text-sm font-bold">← 終了 / Exit</button>
                     <button id="prev-card-btn" class="text-blue-500 hover:text-blue-700 text-sm font-bold hidden">◀ 前へ / Prev</button>
@@ -83,44 +96,67 @@
                 <div id="progress-indicator" class="text-[10px] font-black bg-slate-200 px-3 py-1 rounded-full">0/0</div>
             </div>
 
-            <!-- Display Card -->
-            <div class="bg-white p-8 rounded-3xl card-shadow min-h-[250px] flex flex-col items-center justify-center text-center relative border border-slate-100">
-                <div id="display-text" class="text-2xl font-bold leading-relaxed mb-6 break-words w-full"></div>
-                <div id="display-translation" class="text-slate-400 text-sm font-medium mb-6 min-h-[1.5rem]"></div>
-                
-                <button id="listen-btn" class="bg-blue-50 text-blue-600 p-4 rounded-full transition-colors hover:bg-blue-100 mb-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
-                </button>
+            <div class="flex-grow space-y-4">
+                <!-- Display Card (コンパクト化) -->
+                <div class="bg-white p-6 rounded-3xl card-shadow flex flex-col items-center justify-center text-center relative border border-slate-100">
+                    <div id="display-text" class="text-xl font-bold leading-relaxed mb-4 break-words w-full"></div>
+                    <div id="display-translation" class="text-slate-400 text-sm font-medium mb-4 min-h-[1.5rem]"></div>
+                    
+                    <button id="listen-btn" class="bg-blue-50 text-blue-600 py-2 px-6 rounded-full transition-colors hover:bg-blue-100">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    </button>
+                </div>
+
+                <!-- Mode Selector -->
+                <div class="grid grid-cols-3 gap-1 p-1 bg-slate-200 rounded-xl text-[10px] font-bold mb-4">
+                    <button data-mode="all-hidden" class="mode-toggle py-2 rounded-lg text-slate-500">全部非表示<br>All Hidden</button>
+                    <button data-mode="cloze" class="mode-toggle py-2 rounded-lg bg-white shadow-sm">虫食い<br>Cloze</button>
+                    <button data-mode="hint" class="mode-toggle py-2 rounded-lg text-slate-500">頭文字ヒント<br>Hint</button>
+                </div>
             </div>
 
-            <!-- Mode Selector -->
-            <div class="grid grid-cols-3 gap-1 p-1 bg-slate-200 rounded-xl text-[10px] font-bold">
-                <button data-mode="all-hidden" class="mode-toggle py-2 rounded-lg text-slate-500">全部非表示<br>All Hidden</button>
-                <button data-mode="cloze" class="mode-toggle py-2 rounded-lg bg-white shadow-sm">虫食い<br>Cloze</button>
-                <button data-mode="hint" class="mode-toggle py-2 rounded-lg text-slate-500">頭文字ヒント<br>Hint</button>
-            </div>
-
-            <!-- SRS Buttons (Show after "Show Answer") -->
-            <div id="answer-controls" class="space-y-4">
+            <!-- SRS Buttons (下部固定表示) -->
+            <div id="answer-controls" class="sticky bottom-0 bg-slate-50 pt-2 pb-6 z-10 w-full mt-4 border-t border-slate-200/50">
                 <button id="show-answer-btn" class="w-full py-4 bg-slate-800 text-white rounded-2xl font-bold shadow-lg">答えを表示 / Show Answer</button>
                 
-                <div id="srs-buttons" class="hidden grid grid-cols-4 gap-2">
-                    <button data-interval="60" class="btn-srs bg-rose-100 text-rose-600 p-3 rounded-xl flex flex-col items-center">
-                        <span class="text-[10px] font-bold">Again</span>
-                        <span class="text-[9px]">1m</span>
+                <div id="srs-buttons" class="hidden space-y-2">
+                    <div class="grid grid-cols-4 gap-2">
+                        <button data-interval="60" class="btn-srs bg-rose-100 text-rose-600 p-3 rounded-xl flex flex-col items-center">
+                            <span class="text-[10px] font-bold">Again</span>
+                            <span class="text-[9px]">1m</span>
+                        </button>
+                        <button data-interval="600" class="btn-srs bg-orange-100 text-orange-600 p-3 rounded-xl flex flex-col items-center">
+                            <span class="text-[10px] font-bold">Hard</span>
+                            <span class="text-[9px]">10m</span>
+                        </button>
+                        <button data-interval="86400" class="btn-srs bg-green-100 text-green-600 p-3 rounded-xl flex flex-col items-center">
+                            <span class="text-[10px] font-bold">Good</span>
+                            <span class="text-[9px]">1d</span>
+                        </button>
+                        <button data-interval="345600" class="btn-srs bg-sky-100 text-sky-600 p-3 rounded-xl flex flex-col items-center">
+                            <span class="text-[10px] font-bold">Easy</span>
+                            <span class="text-[9px]">4d</span>
+                        </button>
+                    </div>
+                    <!-- Mastered Button -->
+                    <button id="mastered-btn" class="btn-srs w-full bg-yellow-50/40 text-amber-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm border border-yellow-200/40 hover:bg-yellow-50/80">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        Mastered (習得済み)
                     </button>
-                    <button data-interval="600" class="btn-srs bg-orange-100 text-orange-600 p-3 rounded-xl flex flex-col items-center">
-                        <span class="text-[10px] font-bold">Hard</span>
-                        <span class="text-[9px]">10m</span>
-                    </button>
-                    <button data-interval="86400" class="btn-srs bg-green-100 text-green-600 p-3 rounded-xl flex flex-col items-center">
-                        <span class="text-[10px] font-bold">Good</span>
-                        <span class="text-[9px]">1d</span>
-                    </button>
-                    <button data-interval="345600" class="btn-srs bg-sky-100 text-sky-600 p-3 rounded-xl flex flex-col items-center">
-                        <span class="text-[10px] font-bold">Easy</span>
-                        <span class="text-[9px]">4d</span>
-                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Screen 3: Mastered List / 習得済み一覧画面 -->
+        <div id="screen-mastered" class="hidden space-y-4">
+            <div class="flex items-center justify-between px-2 mb-4">
+                <button id="back-from-mastered" class="text-slate-400 hover:text-slate-800 text-sm font-bold">← 戻る / Back</button>
+                <div class="text-sm font-bold text-slate-600">習得済み一覧 / Mastered List</div>
+            </div>
+            
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div id="mastered-list-container" class="max-h-[70vh] overflow-y-auto divide-y divide-slate-100">
+                    <!-- Mastered items will be generated here -->
                 </div>
             </div>
         </div>
@@ -160,7 +196,7 @@
                 }
             }
 
-            // セッションの復元を試みる
+            // セッションの自動復元
             const resumed = resumeSessionState();
             if (!resumed) {
                 showSetupScreen();
@@ -177,16 +213,25 @@
         // UI Transition Helpers
         function showSetupScreen() {
             document.getElementById('screen-practice').classList.add('hidden');
+            document.getElementById('screen-mastered').classList.add('hidden');
             document.getElementById('screen-setup').classList.remove('hidden');
             updateUnitSelector();
         }
 
         function showPracticeScreen() {
             document.getElementById('screen-setup').classList.add('hidden');
+            document.getElementById('screen-mastered').classList.add('hidden');
             document.getElementById('screen-practice').classList.remove('hidden');
         }
 
-        // Session State Management
+        function showMasteredScreen() {
+            document.getElementById('screen-setup').classList.add('hidden');
+            document.getElementById('screen-practice').classList.add('hidden');
+            document.getElementById('screen-mastered').classList.remove('hidden');
+            renderMasteredList();
+        }
+
+        // Session State Management (自動保存・自動再開)
         function saveSessionState() {
             const isPracticeScreenActive = !document.getElementById('screen-practice').classList.contains('hidden');
             if (!isPracticeScreenActive) return;
@@ -212,29 +257,26 @@
                     const sessionData = JSON.parse(savedSessionStr);
                     // 保存データが有効かチェック
                     if (sessionData.sessionQueue && sessionData.sessionQueue.length > 0 && sessionData.currentIndex < sessionData.sessionQueue.length) {
-                        if (confirm("学習途中のデータがあります。前回の続きから再開しますか？\nResume previous session?")) {
-                            currentUnitName = sessionData.currentUnitName;
-                            sessionQueue = sessionData.sessionQueue;
-                            currentIndex = sessionData.currentIndex;
-                            currentMode = sessionData.currentMode || 'cloze';
-                            isAnswerShown = sessionData.isAnswerShown || false;
-                            
-                            // モードボタンのUIを復元
-                            document.querySelectorAll('.mode-toggle').forEach(b => {
-                                b.classList.remove('bg-white', 'shadow-sm'); 
-                                b.classList.add('text-slate-500');
-                                if (b.dataset.mode === currentMode) {
-                                    b.classList.add('bg-white', 'shadow-sm'); 
-                                    b.classList.remove('text-slate-500');
-                                }
-                            });
+                        // confirmを表示せず、無条件に復元
+                        currentUnitName = sessionData.currentUnitName;
+                        sessionQueue = sessionData.sessionQueue;
+                        currentIndex = sessionData.currentIndex;
+                        currentMode = sessionData.currentMode || 'cloze';
+                        isAnswerShown = sessionData.isAnswerShown || false;
+                        
+                        // モードボタンのUIを復元
+                        document.querySelectorAll('.mode-toggle').forEach(b => {
+                            b.classList.remove('bg-white', 'shadow-sm'); 
+                            b.classList.add('text-slate-500');
+                            if (b.dataset.mode === currentMode) {
+                                b.classList.add('bg-white', 'shadow-sm'); 
+                                b.classList.remove('text-slate-500');
+                            }
+                        });
 
-                            showPracticeScreen();
-                            renderCard(isAnswerShown);
-                            return true; // 復元成功
-                        } else {
-                            clearSessionState();
-                        }
+                        showPracticeScreen();
+                        renderCard(isAnswerShown);
+                        return true; // 復元成功
                     } else {
                         clearSessionState();
                     }
@@ -328,11 +370,8 @@
             const selectedName = document.getElementById('unit-selector').value;
             const text = document.getElementById('word-input').value.trim();
             
-            currentUnitName = inputName || selectedName;
-            
-            if (!currentUnitName) {
-                return alert("ユニット名を入力または選択してください。 / Please enter or select a unit name.");
-            }
+            // ユニット名が未指定の場合は自動的に "Default Unit" を割り当てる
+            currentUnitName = inputName || selectedName || "Default Unit";
 
             // Parse and merge data
             if (text) {
@@ -366,7 +405,8 @@
                         targetWord: targetWord,
                         sentence: sentence,
                         translation: translation,
-                        nextReview: Date.now()
+                        nextReview: 0, // 即座に復習対象になるよう0に設定
+                        mastered: false // Masteredフラグ初期化
                     };
                 }).filter(i => i.sentence.length > 0); 
 
@@ -396,15 +436,21 @@
             db.lastUnit = currentUnitName;
             saveData();
 
-            // Prepare session
+            // Prepare session (Exclude Mastered)
             const now = Date.now();
             sessionQueue = db.units[currentUnitName]
-                .filter(item => item.nextReview <= now)
+                .filter(item => item.nextReview <= now && !item.mastered)
                 .sort(() => Math.random() - 0.5);
 
             if (sessionQueue.length === 0) {
-                if(!confirm("現在復習が必要な単語はありません。すべての単語を強制的に学習しますか？ / No cards due. Study all?")) return;
-                sessionQueue = [...db.units[currentUnitName]].sort(() => Math.random() - 0.5);
+                // 復習対象がない場合
+                if(!confirm("現在復習が必要な単語はありません。未習得のすべての単語を強制的に学習しますか？ / No cards due. Study all unmastered?")) return;
+                sessionQueue = db.units[currentUnitName].filter(item => !item.mastered).sort(() => Math.random() - 0.5);
+                
+                // すべてMasteredの場合
+                if (sessionQueue.length === 0) {
+                    return alert("このユニットの単語はすべて習得済み（Mastered）です！素晴らしい！ / All words are mastered!");
+                }
             }
 
             currentIndex = 0;
@@ -456,17 +502,21 @@
             saveSessionState();
         }
 
-        // Event Listeners for SRS
+        // Event Listeners for SRS & Mastered
         document.getElementById('show-answer-btn').addEventListener('click', () => renderCard(true));
 
         document.querySelectorAll('.btn-srs').forEach(btn => {
             btn.addEventListener('click', () => {
-                const interval = parseInt(btn.dataset.interval);
                 const item = sessionQueue[currentIndex];
-                
                 const dbItem = db.units[currentUnitName].find(i => i.sentence === item.sentence && i.targetRaw === item.targetRaw);
+                
                 if (dbItem) {
-                    dbItem.nextReview = Date.now() + (interval * 1000);
+                    if (btn.id === 'mastered-btn') {
+                        dbItem.mastered = true; // 習得済みにする
+                    } else {
+                        const interval = parseInt(btn.dataset.interval);
+                        dbItem.nextReview = Date.now() + (interval * 1000);
+                    }
                     saveData();
                 }
 
@@ -578,11 +628,103 @@
 
         // Exit Practice mode
         document.getElementById('back-to-setup').addEventListener('click', () => {
-            if (confirm("学習を中断して設定画面に戻りますか？\n(進捗は保存されます) / Exit to setup?")) {
+            if (confirm("学習を中断して設定画面に戻りますか？\n(進捗は自動保存されます) / Exit to setup?")) {
                 saveSessionState();
                 showSetupScreen();
             }
         });
+
+        /* =======================================
+           Mastered List Management
+        ======================================= */
+        document.getElementById('back-from-mastered').addEventListener('click', () => {
+            document.getElementById('screen-mastered').classList.add('hidden');
+            document.getElementById('screen-setup').classList.remove('hidden');
+        });
+
+        document.getElementById('review-mastered-btn').addEventListener('click', showMasteredScreen);
+
+        document.getElementById('export-mastered-btn').addEventListener('click', () => {
+            const currentUnit = document.getElementById('unit-selector').value;
+            let targetUnits = currentUnit ? [currentUnit] : Object.keys(db.units);
+            
+            let exportText = "";
+            targetUnits.forEach(unitName => {
+                const masteredItems = (db.units[unitName] || []).filter(item => item.mastered);
+                masteredItems.forEach(item => {
+                    const transStr = item.translation ? ` | ${item.translation}` : "";
+                    exportText += `${item.targetRaw} : ${item.sentence}${transStr}\n`;
+                });
+            });
+
+            if (!exportText) {
+                alert("指定した範囲に習得済みの単語がありません。 / No mastered words found.");
+                return;
+            }
+
+            const blob = new Blob([exportText], {type: 'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `mastered_${currentUnit || "all"}_${new Date().toISOString().slice(0,10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        function renderMasteredList() {
+            const container = document.getElementById('mastered-list-container');
+            container.innerHTML = '';
+            
+            const currentUnit = document.getElementById('unit-selector').value;
+            let itemsToRender = [];
+            
+            if (currentUnit) {
+                itemsToRender = (db.units[currentUnit] || []).map((item, idx) => ({unit: currentUnit, item, origIndex: idx})).filter(x => x.item.mastered);
+            } else {
+                Object.keys(db.units).forEach(unitName => {
+                    db.units[unitName].forEach((item, idx) => {
+                        if (item.mastered) {
+                            itemsToRender.push({unit: unitName, item, origIndex: idx});
+                        }
+                    });
+                });
+            }
+
+            if (itemsToRender.length === 0) {
+                container.innerHTML = `<div class="p-8 text-center text-sm font-bold text-slate-400">習得済みの単語はありません。<br>No mastered words.</div>`;
+                return;
+            }
+
+            itemsToRender.forEach(({unit, item, origIndex}) => {
+                const row = document.createElement('div');
+                row.className = 'p-4 flex justify-between items-center gap-4 hover:bg-slate-50 transition-colors';
+                row.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-bold text-slate-800 truncate">${item.targetRaw}</div>
+                        <div class="text-xs text-slate-500 truncate mt-1">${item.sentence}</div>
+                        ${!currentUnit ? `<div class="text-[10px] text-blue-500 mt-1">[Unit: ${unit}]</div>` : ''}
+                    </div>
+                    <button class="unmaster-btn flex-shrink-0 px-3 py-2 bg-slate-200 hover:bg-slate-300 active:scale-95 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap transition-all" data-unit="${unit}" data-index="${origIndex}">
+                        解除 / Unmaster
+                    </button>
+                `;
+                container.appendChild(row);
+            });
+
+            // 解除ボタンのイベント
+            document.querySelectorAll('.unmaster-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const unit = e.currentTarget.dataset.unit;
+                    const idx = e.currentTarget.dataset.index;
+                    if (db.units[unit] && db.units[unit][idx]) {
+                        db.units[unit][idx].mastered = false;
+                        db.units[unit][idx].nextReview = Date.now(); // すぐに復習対象に戻す
+                        saveData();
+                        renderMasteredList(); // リストを再描画
+                    }
+                });
+            });
+        }
 
     </script>
 </body>
