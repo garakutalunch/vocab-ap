@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ANKI Ver. 1.5 - Bilingual Vocab Builder</title>
+    <title>ANKI Ver. 1.51 - Bilingual Vocab Builder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .card-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
@@ -14,11 +14,14 @@
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800 font-sans p-2 relative">
 
-    <div id="app" class="max-w-xl mx-auto py-4">
+    <div id="app" class="max-w-xl mx-auto py-2">
         
         <!-- Header -->
-        <header class="text-center mb-6">
-            <h1 class="text-2xl font-black text-blue-600 tracking-tighter">ANKI Ver. 1.5</h1>
+        <header class="relative text-center mb-6 mt-2">
+            <button id="open-guide-btn" class="absolute right-0 top-0 text-[11px] text-slate-500 hover:text-blue-600 font-bold flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-lg shadow-sm transition-colors">
+                📖 Guide
+            </button>
+            <h1 class="text-2xl font-black text-blue-600 tracking-tighter mt-4">ANKI Ver. 1.51</h1>
             <p class="text-xs text-slate-400 font-bold uppercase">Space Repetition Learning Tool</p>
         </header>
 
@@ -71,20 +74,19 @@
                 <div class="grid grid-cols-2 gap-3 mb-2">
                     <div>
                         <label class="text-[10px] font-bold text-slate-400">音声 / Voice</label>
-                        <select id="voice-select" class="w-full p-2 border rounded text-sm bg-white">
-                            <option value="en-GB-Female">イギリス英語 (女性)</option>
-                            <option value="en-GB-Male">イギリス英語 (男性)</option>
-                            <option value="ja-JP-Female">日本語 (女性)</option>
-                            <option value="ja-JP-Male">日本語 (男性)</option>
-                            <option value="zh-CN-Female">中国語 - 簡体字 (女性)</option>
-                            <option value="zh-CN-Male">中国語 - 簡体字 (男性)</option>
+                        <select id="voice-select" class="w-full p-2 border rounded text-[11px] font-bold bg-white text-slate-700 outline-none">
+                            <option value="en-GB-Female">Eng (Female) / 英語 (女性)</option>
+                            <option value="en-GB-Male">Eng (Male) / 英語 (男性)</option>
+                            <option value="ja-JP-Female">JP (Female) / 日本語 (女性)</option>
+                            <option value="ja-JP-Male">JP (Male) / 日本語 (男性)</option>
+                            <option value="zh-CN-Female">CN (Female) / 中国語 (女性)</option>
+                            <option value="zh-CN-Male">CN (Male) / 中国語 (男性)</option>
                         </select>
                     </div>
                     <button id="start-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition-all">
                         最初から開始 / Start
                     </button>
                 </div>
-                <p class="text-[9px] text-slate-400 leading-tight">※iPhoneで目的の声が出ない場合: 「設定 ＞ アクセシビリティ ＞ 読み上げコンテンツ ＞ 声」から音声をダウンロードしてください。</p>
             </div>
 
             <!-- Mastered Management / 習得済み管理 -->
@@ -215,6 +217,87 @@
             </div>
         </div>
 
+        <!-- Guide Modal (マニュアル) -->
+        <div id="guide-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl">
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+                    <h2 class="font-bold text-slate-800">📖 Quick Start Guide</h2>
+                    <button id="close-guide-btn" class="text-slate-400 hover:text-slate-600 text-2xl font-bold leading-none">&times;</button>
+                </div>
+                <div class="p-5 overflow-y-auto text-[13px] text-slate-600 space-y-6 leading-relaxed">
+                    
+                    <!-- English Guide -->
+                    <div>
+                        <h3 class="font-black text-blue-600 text-base mb-2">ENG: ANKI Ver.1.51</h3>
+                        <p class="mb-4">✅ Works fully offline! No internet needed.</p>
+
+                        <p class="font-bold text-slate-800 border-b border-slate-200 pb-1 mb-2">📱 Add to Your Home Screen</p>
+                        <ul class="mb-4 space-y-1 list-disc pl-4">
+                            <li><b>iPhone:</b> Open in Safari > Tap Share (↑) > "Add to Home Screen"</li>
+                            <li><b>Android:</b> Open in Chrome > Tap "⋮" > "Add to Home screen"</li>
+                        </ul>
+
+                        <p class="font-bold text-slate-800 border-b border-slate-200 pb-1 mb-2">📝 Adding a Word List</p>
+                        <ol class="mb-2 space-y-1 list-decimal pl-4">
+                            <li>Tap "Open File .txt" on the main screen</li>
+                            <li>Choose a .txt file</li>
+                            <li>Enter a unit name and tap "Start"</li>
+                        </ol>
+                        <p class="mb-4 bg-slate-100 p-2 rounded text-xs">Format:<br>word /phonetics/ (meaning) : example sentence | translation</p>
+
+                        <p class="font-bold text-slate-800 border-b border-slate-200 pb-1 mb-2">🎮 How to Study</p>
+                        <ul class="mb-4 space-y-1 list-disc pl-4">
+                            <li>Guess the hidden target word, then tap "Show Answer".</li>
+                            <li>Choose when to see the card again (Again, Hard, Good, Easy).</li>
+                            <li>Tap "✓ Mastered" once you know a word perfectly (It will not appear again).</li>
+                        </ul>
+
+                        <p class="font-bold text-slate-800 border-b border-slate-200 pb-1 mb-2">🔊 Language & Voice Settings</p>
+                        <p class="mb-2">Select the appropriate language and gender from the "Voice" menu (Eng, JP, CN).</p>
+                        <p class="text-xs text-rose-600 bg-rose-50 p-2 rounded">⚠️ Note for iPhone users: If the voice sounds unnatural, please download high-quality voices from Settings > Accessibility > Spoken Content > Voices.</p>
+
+                        <p class="font-bold text-slate-800 border-b border-slate-200 pb-1 mt-4 mb-2">💾 Backup</p>
+                        <p>Tap "Export Backup" to save your data as a JSON file to prevent data loss when cache clears.</p>
+                    </div>
+
+                    <div class="h-px w-full bg-slate-200"></div>
+
+                    <!-- Japanese Guide -->
+                    <div>
+                        <h3 class="font-black text-blue-600 text-base mb-2">JPN: ANKI Ver.1.51</h3>
+                        <p class="mb-4">✅ オフラインOK！インターネット不要で使えます。</p>
+
+                        <p class="font-bold text-slate-800 border-b border-slate-200 pb-1 mb-2">📱 ホーム画面に追加する方法</p>
+                        <ul class="mb-4 space-y-1 list-disc pl-4">
+                            <li><b>iPhone:</b> Safariで開く > 共有ボタン（↑） > 「ホーム画面に追加」</li>
+                            <li><b>Android:</b> Chromeで開く > 右上の「⋮」 > 「ホーム画面に追加」</li>
+                        </ul>
+
+                        <p class="font-bold text-slate-800 border-b border-slate-200 pb-1 mb-2">📝 単語リストの追加方法</p>
+                        <ol class="mb-2 space-y-1 list-decimal pl-4">
+                            <li>「Open File .txt」をタップしファイルを選択</li>
+                            <li>ユニット名を入力して「Start」</li>
+                        </ol>
+                        <p class="mb-4 text-xs">※テキストエリアに直接コピペでもOKです。<br>フォーマット: <code class="bg-slate-100 px-1 rounded">word /発音/ (意味) : 例文 | 和訳</code></p>
+
+                        <p class="font-bold text-slate-800 border-b border-slate-200 pb-1 mb-2">🎮 使い方</p>
+                        <ul class="mb-4 space-y-1 list-disc pl-4">
+                            <li>「Show Answer」で答えを確認後、次の出題タイミングを4つのボタンから選びます。</li>
+                            <li>完全に覚えた単語は「✓ Mastered」を押すと以後出題されなくなります（「リスト管理」から解除可能）。</li>
+                        </ul>
+
+                        <p class="font-bold text-slate-800 border-b border-slate-200 pb-1 mb-2">🔊 言語・音声設定</p>
+                        <p class="mb-2">学習する言語と性別を「音声 / Voice」から選んでください（英語 / 日本語 / 中国語）。学習言語と違う音声を選ぶと不自然になります。</p>
+                        <p class="text-xs text-rose-600 bg-rose-50 p-2 rounded">⚠️ iPhoneで目的の声が出ない場合：「設定 ＞ アクセシビリティ ＞ 読み上げコンテンツ ＞ 声」から音声をダウンロードしてください。</p>
+
+                        <p class="font-bold text-slate-800 border-b border-slate-200 pb-1 mt-4 mb-2">💾 バックアップ</p>
+                        <p>「Export Backup」でデータをJSON保存できます。ブラウザ履歴消去に備えて定期的にバックアップしてください。</p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script>
@@ -288,6 +371,20 @@
 
         document.getElementById('close-summary-btn').addEventListener('click', () => {
             showSetupScreen();
+        });
+
+        // ガイドモーダル処理
+        document.getElementById('open-guide-btn').addEventListener('click', () => {
+            document.getElementById('guide-modal').classList.remove('hidden');
+        });
+        document.getElementById('close-guide-btn').addEventListener('click', () => {
+            document.getElementById('guide-modal').classList.add('hidden');
+        });
+        // 背景クリックで閉じる
+        document.getElementById('guide-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'guide-modal') {
+                document.getElementById('guide-modal').classList.add('hidden');
+            }
         });
 
         // ユニットの習得率プログレスバー更新
