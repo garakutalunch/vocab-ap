@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ANKI Ver. 1.5 - Bilingual Vocab Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .card-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
+        .hidden { display: none !important; }
+        .btn-srs { transition: all 0.2s ease; }
+        .btn-srs:active { transform: scale(0.95); }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans p-2 relative">
+
+    <div id="app" class="max-w-xl mx-auto py-4">
+        
+        <!-- Header -->
+        <header class="text-center mb-6">
+            <h1 class="text-2xl font-black text-blue-600 tracking-tighter">ANKI Ver. 1.5</h1>
+            <p class="text-xs text-slate-400 font-bold uppercase">Space Repetition Learning Tool</p>
+        </header>
+
+        <!-- Screen 1: Setup / 設定画面 -->
+        <div id="screen-setup" class="space-y-4">
+            
+            <!-- Resume Session UI (中断データがある場合のみ表示) -->
+            <div id="resume-session-container" class="hidden mb-2 p-4 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
+                <p class="text-xs text-blue-700 font-bold mb-2">💡 学習途中のセッションがあります</p>
+                <button id="resume-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow transition-all flex justify-between items-center px-4">
+                    <span>▶ 続きから再開する</span>
+                    <span id="resume-progress-text" class="text-xs bg-blue-800/50 px-2 py-1 rounded-md">0 / 0</span>
+                </button>
+                <div class="text-right mt-2">
+                    <button id="discard-session-btn" class="text-[10px] text-slate-400 hover:text-red-500 py-1 underline">破棄して新しく始める (Discard)</button>
+                </div>
+            </div>
+
+            <!-- Unit Management / ユニット管理 -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="text-sm font-bold mb-3 flex justify-between">
+                    <span>学習ユニットの選択 / Select Unit</span>
+                    <button id="delete-unit-btn" class="text-red-400 hover:text-red-600 text-xs">[ 削除 / Delete ]</button>
+                </h2>
+                <select id="unit-selector" class="w-full p-3 border rounded-lg bg-slate-50 mb-4 focus:ring-2 focus:ring-blue-500 outline-none"></select>
+
+                <!-- ユニット進捗 / Unit Progress -->
+                <div id="unit-progress-container" class="hidden mb-5 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                    <div class="flex justify-between text-xs font-bold text-slate-500 mb-1.5">
+                        <span>ユニット習得率 / Mastered</span>
+                        <span id="unit-progress-text" class="text-blue-600">0 / 0 (0%)</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-2">
+                        <div id="unit-progress-bar" class="bg-gradient-to-r from-blue-400 to-blue-600 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <h2 class="text-sm font-bold mb-2">新規登録・追加 / Register & Add</h2>
+                <input type="text" id="unit-name-input" placeholder="新しいユニット名を入力 / New Unit Name" class="w-full p-3 border rounded-lg mb-3 outline-none focus:ring-2 focus:ring-blue-500">
+                
+                <div class="flex gap-2 mb-3">
+                    <label class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-center py-2 rounded-lg cursor-pointer text-sm font-bold border border-dashed border-slate-300">
+                        📁 ファイル選択 / Open File (.txt)
+                        <input type="file" id="file-input" accept=".txt" class="hidden">
+                    </label>
+                </div>
+
+                <textarea id="word-input" rows="5" class="w-full p-3 border rounded-lg bg-slate-50 font-mono text-xs mb-3" placeholder="word: sentence / translation&#10;apple: I eat an apple. / りんご"></textarea>
+                
+                <div class="grid grid-cols-2 gap-3 mb-2">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400">音声 / Voice</label>
+                        <select id="voice-select" class="w-full p-2 border rounded text-sm bg-white">
+                            <option value="en-GB-Female">イギリス英語 (女性)</option>
+                            <option value="en-GB-Male">イギリス英語 (男性)</option>
+                            <option value="ja-JP-Female">日本語 (女性)</option>
+                            <option value="ja-JP-Male">日本語 (男性)</option>
+                            <option value="zh-CN-Female">中国語 - 簡体字 (女性)</option>
+                            <option value="zh-CN-Male">中国語 - 簡体字 (男性)</option>
+                        </select>
+                    </div>
+                    <button id="start-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition-all">
+                        最初から開始 / Start
+                    </button>
+                </div>
+                <p class="text-[9px] text-slate-400 leading-tight">※iPhoneで目的の声が出ない場合: 「設定 ＞ アクセシビリティ ＞ 読み上げコンテンツ ＞ 声」から音声をダウンロードしてください。</p>
+            </div>
+
+            <!-- Mastered Management / 習得済み管理 -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="text-sm font-bold mb-3 text-slate-700">習得済みリスト管理 / Mastered List</h2>
+                <div class="flex flex-col gap-2">
+                    <button id="export-mastered-btn" class="w-full bg-amber-50 text-amber-700 border border-amber-200 py-2.5 rounded-lg text-sm font-bold hover:bg-amber-100 transition-colors">
+                        習得済みリストを書き出す / Export Mastered List
+                    </button>
+                    <button id="review-mastered-btn" class="w-full bg-slate-50 text-slate-700 border border-slate-200 py-2.5 rounded-lg text-sm font-bold hover:bg-slate-100 transition-colors">
+                        リストを確認・解除する / Review & Unmaster
+                    </button>
+                </div>
+            </div>
+
+            <!-- Backup Tools -->
+            <div class="flex justify-between gap-4 px-2 pb-8">
+                <button id="export-btn" class="text-xs text-slate-500 hover:text-blue-600">📤 バックアップ / Export Backup</button>
+                <label class="text-xs text-slate-500 hover:text-blue-600 cursor-pointer">
+                    📥 復元 / Restore Import
+                    <input type="file" id="restore-input" accept=".json" class="hidden">
+                </label>
+            </div>
+        </div>
+
+        <!-- Screen 2: Practice / 練習画面 -->
+        <div id="screen-practice" class="hidden flex flex-col min-h-[85vh]">
+            <div class="flex items-center justify-between px-2 mb-4">
+                <div class="flex gap-3">
+                    <button id="back-to-setup" class="text-slate-400 hover:text-slate-800 text-sm font-bold">← 中断 / Exit</button>
+                    <button id="prev-card-btn" class="text-blue-500 hover:text-blue-700 text-sm font-bold hidden">◀ 前へ / Prev</button>
+                </div>
+                <div id="progress-indicator" class="text-[10px] font-black bg-slate-200 px-3 py-1 rounded-full">0/0</div>
+            </div>
+
+            <div class="flex-grow space-y-4">
+                <!-- Display Card -->
+                <div class="bg-white p-6 rounded-3xl card-shadow flex flex-col items-center justify-center text-center relative border border-slate-100 min-h-[200px]">
+                    <div id="display-text" class="text-xl font-bold leading-relaxed mb-4 break-words w-full"></div>
+                    <div id="display-translation" class="text-slate-400 text-sm font-medium mb-4 min-h-[1.5rem]"></div>
+                    
+                    <button id="listen-btn" class="bg-blue-50 text-blue-600 py-2 px-6 rounded-full transition-colors hover:bg-blue-100">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    </button>
+                </div>
+
+                <!-- Mode Selector -->
+                <div class="grid grid-cols-3 gap-1 p-1 bg-slate-200 rounded-xl text-[10px] font-bold mb-4">
+                    <button data-mode="all-hidden" class="mode-toggle py-2 rounded-lg text-slate-500">全部非表示<br>All Hidden</button>
+                    <button data-mode="cloze" class="mode-toggle py-2 rounded-lg bg-white shadow-sm">虫食い<br>Cloze</button>
+                    <button data-mode="hint" class="mode-toggle py-2 rounded-lg text-slate-500">頭文字ヒント<br>Hint</button>
+                </div>
+            </div>
+
+            <!-- SRS Buttons (下部固定) -->
+            <div id="answer-controls" class="sticky bottom-0 bg-slate-50 pt-2 pb-6 z-10 w-full mt-4 border-t border-slate-200/50">
+                <button id="show-answer-btn" class="w-full py-4 bg-slate-800 text-white rounded-2xl font-bold shadow-lg">答えを表示 / Show Answer</button>
+                
+                <div id="srs-buttons" class="hidden space-y-2">
+                    <div class="grid grid-cols-4 gap-2">
+                        <button data-interval="60" class="btn-srs bg-rose-100 text-rose-600 p-3 rounded-xl flex flex-col items-center">
+                            <span class="text-[10px] font-bold">Again</span>
+                            <span class="text-[9px]">1m</span>
+                        </button>
+                        <button data-interval="600" class="btn-srs bg-orange-100 text-orange-600 p-3 rounded-xl flex flex-col items-center">
+                            <span class="text-[10px] font-bold">Hard</span>
+                            <span class="text-[9px]">10m</span>
+                        </button>
+                        <button data-interval="86400" class="btn-srs bg-green-100 text-green-600 p-3 rounded-xl flex flex-col items-center">
+                            <span class="text-[10px] font-bold">Good</span>
+                            <span class="text-[9px]">1d</span>
+                        </button>
+                        <button data-interval="345600" class="btn-srs bg-sky-100 text-sky-600 p-3 rounded-xl flex flex-col items-center">
+                            <span class="text-[10px] font-bold">Easy</span>
+                            <span class="text-[9px]">4d</span>
+                        </button>
+                    </div>
+                    <!-- Mastered Button (極薄のクリーム色) -->
+                    <button id="mastered-btn" class="btn-srs w-full bg-[#fffdf5] text-amber-600 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm border border-[#fde68a]/50 hover:bg-[#fff9d6]">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        Mastered (習得済み)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Screen 3: Mastered List / 習得済み一覧画面 -->
+        <div id="screen-mastered" class="hidden space-y-4">
+            <div class="flex items-center justify-between px-2 mb-4">
+                <button id="back-from-mastered" class="text-slate-400 hover:text-slate-800 text-sm font-bold">← 戻る / Back</button>
+                <div class="text-sm font-bold text-slate-600">習得済み一覧 / Mastered List</div>
+            </div>
+            
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div id="mastered-list-container" class="max-h-[70vh] overflow-y-auto divide-y divide-slate-100">
+                    <!-- Mastered items will be generated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Session Summary Modal (セッション完了時のリザルト) -->
+        <div id="session-summary-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl p-6 w-full max-w-sm card-shadow text-center transform transition-all scale-100">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span class="text-3xl">🎉</span>
+                </div>
+                <h2 class="text-xl font-black text-slate-800 mb-2">セッション完了！</h2>
+                <p class="text-sm text-slate-500 mb-6">お疲れ様でした。今回の学習結果です。</p>
+                
+                <div class="bg-slate-50 rounded-xl p-4 space-y-3 mb-6 border border-slate-100">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm font-bold text-slate-600">学習した単語数</span>
+                        <span id="summary-total" class="text-lg font-black text-slate-800">0</span>
+                    </div>
+                    <div class="h-px bg-slate-200 w-full"></div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm font-bold text-amber-600">新しく習得(Mastered)</span>
+                        <span class="text-lg font-black text-amber-600 flex items-center gap-1">
+                            <span id="summary-mastered">0</span>
+                            <span class="text-xs">個</span>
+                        </span>
+                    </div>
+                </div>
+                
+                <button id="close-summary-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg">
+                    ユニット一覧に戻る
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Data Structure
+        let db = {
+            units: {}, 
+            lastUnit: ""
+        };
+
+        let currentUnitName = "";
+        let sessionQueue = [];
+        let currentIndex = 0;
+        let currentMode = 'cloze'; // Default mode
+        let isAnswerShown = false;
+        
+        // 学習達成感トラッキング用
+        let sessionStats = { total: 0, newMastered: 0 };
+
+        // Voices preload
+        window.speechSynthesis.onvoiceschanged = () => {
+            window.speechSynthesis.getVoices();
+        };
+
+        // Initialization
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('anki_v12_db');
+            if (saved) {
+                try {
+                    db = JSON.parse(saved);
+                    updateUnitSelector();
+                    if (db.lastUnit && db.units[db.lastUnit]) {
+                        document.getElementById('unit-selector').value = db.lastUnit;
+                        updateUnitProgress();
+                    }
+                } catch(e) {
+                    console.error("Failed to parse saved data");
+                }
+            }
+            checkSessionState();
+        });
+
+        // UI Transition Helpers
+        function showSetupScreen() {
+            document.getElementById('screen-practice').classList.add('hidden');
+            document.getElementById('screen-mastered').classList.add('hidden');
+            document.getElementById('session-summary-modal').classList.add('hidden');
+            document.getElementById('screen-setup').classList.remove('hidden');
+            updateUnitSelector();
+            updateUnitProgress();
+            checkSessionState(); // 中断セッションの有無を確認
+        }
+
+        function showPracticeScreen() {
+            document.getElementById('screen-setup').classList.add('hidden');
+            document.getElementById('screen-mastered').classList.add('hidden');
+            document.getElementById('screen-practice').classList.remove('hidden');
+        }
+
+        function showMasteredScreen() {
+            document.getElementById('screen-setup').classList.add('hidden');
+            document.getElementById('screen-practice').classList.add('hidden');
+            document.getElementById('screen-mastered').classList.remove('hidden');
+            renderMasteredList();
+        }
+
+        function showSummaryModal() {
+            document.getElementById('summary-total').textContent = sessionStats.total;
+            document.getElementById('summary-mastered').textContent = sessionStats.newMastered;
+            document.getElementById('session-summary-modal').classList.remove('hidden');
+        }
+
+        document.getElementById('close-summary-btn').addEventListener('click', () => {
+            showSetupScreen();
+        });
+
+        // ユニットの習得率プログレスバー更新
+        function updateUnitProgress() {
+            const unitName = document.getElementById('unit-selector').value;
+            const progressContainer = document.getElementById('unit-progress-container');
+            
+            if (!unitName || !db.units[unitName] || db.units[unitName].length === 0) {
+                progressContainer.classList.add('hidden');
+                return;
+            }
+
+            const total = db.units[unitName].length;
+            const mastered = db.units[unitName].filter(item => item.mastered).length;
+            const percent = total > 0 ? Math.round((mastered / total) * 100) : 0;
+
+            document.getElementById('unit-progress-text').textContent = `${mastered} / ${total} (${percent}%)`;
+            document.getElementById('unit-progress-bar').style.width = `${percent}%`;
+            progressContainer.classList.remove('hidden');
+        }
+
+        // Session State Management
+        function saveSessionState() {
+            const isPracticeScreenActive = !document.getElementById('screen-practice').classList.contains('hidden');
+            if (!isPracticeScreenActive) return;
+
+            const sessionData = {
+                currentUnitName,
+                sessionQueue,
+                currentIndex,
+                currentMode,
+                isAnswerShown,
+                sessionStats
+            };
+            localStorage.setItem('anki_v12_session', JSON.stringify(sessionData));
+        }
+
+        function clearSessionState() {
+            localStorage.removeItem('anki_v12_session');
+            document.getElementById('resume-session-container').classList.add('hidden');
+        }
+
+        function checkSessionState() {
+            const savedSessionStr = localStorage.getItem('anki_v12_session');
+            const container = document.getElementById('resume-session-container');
+            
+            if (savedSessionStr) {
+                try {
+                    const sessionData = JSON.parse(savedSessionStr);
+                    if (sessionData.sessionQueue && sessionData.sessionQueue.length > 0 && sessionData.currentIndex < sessionData.sessionQueue.length) {
+                        document.getElementById('resume-progress-text').textContent = `${sessionData.currentIndex + 1} / ${sessionData.sessionQueue.length}`;
+                        container.classList.remove('hidden');
+                        return;
+                    }
+                } catch(e) {}
+            }
+            container.classList.add('hidden');
+        }
+
+        // 続きから再開するボタン
+        document.getElementById('resume-btn').addEventListener('click', () => {
+            const savedSessionStr = localStorage.getItem('anki_v12_session');
+            if (savedSessionStr) {
+                try {
+                    const sessionData = JSON.parse(savedSessionStr);
+                    currentUnitName = sessionData.currentUnitName;
+                    sessionQueue = sessionData.sessionQueue;
+                    currentIndex = sessionData.currentIndex;
+                    currentMode = sessionData.currentMode || 'cloze';
+                    isAnswerShown = sessionData.isAnswerShown || false;
+                    sessionStats = sessionData.sessionStats || { total: sessionQueue.length, newMastered: 0 };
+                    
+                    document.querySelectorAll('.mode-toggle').forEach(b => {
+                        b.classList.remove('bg-white', 'shadow-sm'); 
+                        b.classList.add('text-slate-500');
+                        if (b.dataset.mode === currentMode) {
+                            b.classList.add('bg-white', 'shadow-sm'); 
+                            b.classList.remove('text-slate-500');
+                        }
+                    });
+
+                    showPracticeScreen();
+                    renderCard(isAnswerShown);
+                } catch(e) {
+                    clearSessionState();
+                }
+            }
+        });
+
+        // 破棄するボタン
+        document.getElementById('discard-session-btn').addEventListener('click', () => {
+            if(confirm("保存されている学習中のセッションを破棄しますか？")) {
+                clearSessionState();
+            }
+        });
+
+        // Database Helpers
+        function saveData() {
+            localStorage.setItem('anki_v12_db', JSON.stringify(db));
+            updateUnitProgress();
+        }
+
+        function updateUnitSelector() {
+            const selector = document.getElementById('unit-selector');
+            selector.innerHTML = '';
+            
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = "";
+            emptyOpt.textContent = "--- 選択してください ---";
+            selector.appendChild(emptyOpt);
+
+            Object.keys(db.units).forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                selector.appendChild(opt);
+            });
+            
+            if (db.lastUnit && db.units[db.lastUnit]) {
+                selector.value = db.lastUnit;
+            }
+        }
+
+        document.getElementById('unit-selector').addEventListener('change', (e) => {
+            if (e.target.value !== "") {
+                document.getElementById('unit-name-input').value = "";
+                db.lastUnit = e.target.value;
+                saveData();
+            } else {
+                updateUnitProgress();
+            }
+        });
+
+        document.getElementById('unit-name-input').addEventListener('input', (e) => {
+            if (e.target.value.trim() !== "") {
+                document.getElementById('unit-selector').value = "";
+            }
+        });
+
+        // Web Speech API Logic (iOS対応強化)
+        function playOfflineTTS(text, voiceSetting) {
+            if (!('speechSynthesis' in window)) {
+                alert("お使いのブラウザは音声読み上げに対応していません。");
+                return;
+            }
+
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            const voices = window.speechSynthesis.getVoices();
+            
+            let lang = 'en-US';
+            let gender = 'female';
+
+            if (voiceSetting === 'en-GB-Female') { lang = 'en-GB'; gender = 'female'; }
+            else if (voiceSetting === 'en-GB-Male') { lang = 'en-GB'; gender = 'male'; }
+            else if (voiceSetting === 'ja-JP-Female') { lang = 'ja-JP'; gender = 'female'; }
+            else if (voiceSetting === 'ja-JP-Male') { lang = 'ja-JP'; gender = 'male'; }
+            else if (voiceSetting === 'zh-CN-Female') { lang = 'zh-CN'; gender = 'female'; }
+            else if (voiceSetting === 'zh-CN-Male') { lang = 'zh-CN'; gender = 'male'; }
+            
+            utterance.lang = lang;
+
+            // 言語でフィルタ
+            let availableVoices = voices.filter(v => v.lang.replace('_', '-').toLowerCase().startsWith(lang.substring(0, 2)));
+            let exactLangVoices = availableVoices.filter(v => v.lang.replace('_', '-').toLowerCase() === lang.toLowerCase());
+            if (exactLangVoices.length > 0) availableVoices = exactLangVoices;
+
+            // iOSの音声名を含む性別キーワード
+            const maleNames = ['daniel', 'arthur', 'george', 'oliver', 'ichiro', 'otoya', 'kangkang', 'male', 'mac', 'fred'];
+            const femaleNames = ['martha', 'serena', 'stephanie', 'karen', 'kyoko', 'siri', 'amelia', 'fiona', 'hazel', 'melina', 'samantha', 'victoria', 'female', 'ting-ting', 'yaoyao', 'huihui'];
+
+            let selectedVoice = null;
+            if (gender === 'male') {
+                selectedVoice = availableVoices.find(v => maleNames.some(name => v.name.toLowerCase().includes(name)));
+            } else {
+                selectedVoice = availableVoices.find(v => femaleNames.some(name => v.name.toLowerCase().includes(name)));
+            }
+
+            // フォールバック
+            if (!selectedVoice && availableVoices.length > 0) {
+                if (gender === 'male' && availableVoices.length > 1) {
+                    selectedVoice = availableVoices[availableVoices.length - 1]; 
+                } else {
+                    selectedVoice = availableVoices[0];
+                }
+            }
+
+            if (selectedVoice) {
+                utterance.voice = selectedVoice;
+            }
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // Logic Implementation (Start Practice)
+        document.getElementById('start-btn').addEventListener('click', () => {
+            const inputName = document.getElementById('unit-name-input').value.trim();
+            const selectedName = document.getElementById('unit-selector').value;
+            const text = document.getElementById('word-input').value.trim();
+            
+            currentUnitName = inputName || selectedName || "Default Unit";
+
+            // Parse and merge data
+            if (text) {
+                const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+                const items = lines.map(line => {
+                    const match = line.match(/[:\t：]/);
+                    let leftPart = "";
+                    let rightPart = "";
+                    
+                    if (match) {
+                        leftPart = line.substring(0, match.index).trim();
+                        rightPart = line.substring(match.index + 1).trim();
+                    } else {
+                        leftPart = line;
+                        rightPart = line;
+                    }
+                    
+                    let sentence = rightPart;
+                    let translation = "";
+                    const transMatch = rightPart.match(/[|｜\/／]/);
+                    if (transMatch) {
+                        sentence = rightPart.substring(0, transMatch.index).trim();
+                        translation = rightPart.substring(transMatch.index + 1).trim();
+                    }
+
+                    let targetWord = leftPart.split(/[\s/（(]/)[0].trim();
+                    if (!targetWord) targetWord = leftPart;
+
+                    return {
+                        targetRaw: leftPart,
+                        targetWord: targetWord,
+                        sentence: sentence,
+                        translation: translation,
+                        nextReview: 0,
+                        mastered: false
+                    };
+                }).filter(i => i.sentence.length > 0); 
+
+                if (items.length > 0) {
+                    if (!db.units[currentUnitName]) db.units[currentUnitName] = [];
+                    
+                    const existingSentences = new Set(db.units[currentUnitName].map(i => i.sentence));
+                    const newItems = items.filter(i => !existingSentences.has(i.sentence));
+                    
+                    if (newItems.length === 0 && document.getElementById('word-input').value.trim() !== "") {
+                        alert("入力されたテキストは既にこのユニットに存在するため、追加されませんでした。");
+                    } else if (newItems.length > 0) {
+                        db.units[currentUnitName] = [...db.units[currentUnitName], ...newItems];
+                        document.getElementById('word-input').value = "";
+                        document.getElementById('unit-name-input').value = "";
+                        updateUnitSelector();
+                        document.getElementById('unit-selector').value = currentUnitName;
+                    }
+                }
+            }
+
+            // Check Data
+            if (!db.units[currentUnitName] || db.units[currentUnitName].length === 0) {
+                return alert(`ユニット「${currentUnitName}」にデータがありません。\nNo valid data found in this unit.`);
+            }
+
+            db.lastUnit = currentUnitName;
+            saveData();
+
+            // Prepare session (Exclude Mastered)
+            const now = Date.now();
+            sessionQueue = db.units[currentUnitName]
+                .filter(item => item.nextReview <= now && !item.mastered)
+                .sort(() => Math.random() - 0.5);
+
+            if (sessionQueue.length === 0) {
+                if(!confirm("現在復習が必要な単語はありません。未習得のすべての単語を学習しますか？ / No cards due. Study all unmastered?")) return;
+                sessionQueue = db.units[currentUnitName].filter(item => !item.mastered).sort(() => Math.random() - 0.5);
+                
+                if (sessionQueue.length === 0) {
+                    return alert("🎉 このユニットの単語はすべて習得済み（Mastered）です！素晴らしい！");
+                }
+            }
+
+            currentIndex = 0;
+            isAnswerShown = false;
+            sessionStats = { total: sessionQueue.length, newMastered: 0 };
+            
+            showPracticeScreen();
+            renderCard(false);
+        });
+
+        function renderCard(showAnswer = false) {
+            isAnswerShown = showAnswer;
+            if(currentIndex >= sessionQueue.length) return;
+            const item = sessionQueue[currentIndex];
+            const display = document.getElementById('display-text');
+            const trans = document.getElementById('display-translation');
+            
+            trans.innerText = item.translation || "";
+            document.getElementById('prev-card-btn').classList.toggle('hidden', currentIndex === 0);
+
+            if (showAnswer) {
+                display.innerHTML = `<div class="text-lg text-blue-600 mb-2">${item.targetRaw}</div><div>${item.sentence}</div>`;
+            } else {
+                const target = item.targetWord;
+                const escapedTarget = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regexNoBound = new RegExp(escapedTarget, 'gi');
+
+                if (currentMode === 'all-hidden') {
+                    display.innerText = `[ ${'_'.repeat(target.length)} ]`;
+                } else if (currentMode === 'cloze') {
+                    if(target === item.sentence) {
+                        display.innerText = `[ ${'_'.repeat(target.length)} ]`;
+                    } else {
+                        display.innerText = item.sentence.replace(regexNoBound, (m) => `[ ${'_'.repeat(m.length)} ]`);
+                    }
+                } else if (currentMode === 'hint') {
+                    if(target === item.sentence) {
+                        display.innerText = `[ ${target[0]}${'_'.repeat(target.length - 1)} ]`;
+                    } else {
+                        display.innerText = item.sentence.replace(regexNoBound, (m) => `[ ${m[0]}${'_'.repeat(m.length-1)} ]`);
+                    }
+                }
+            }
+
+            document.getElementById('progress-indicator').textContent = `${currentIndex + 1} / ${sessionQueue.length}`;
+            document.getElementById('show-answer-btn').classList.toggle('hidden', showAnswer);
+            document.getElementById('srs-buttons').classList.toggle('hidden', !showAnswer);
+            
+            saveSessionState();
+        }
+
+        // Event Listeners for SRS & Mastered
+        document.getElementById('show-answer-btn').addEventListener('click', () => renderCard(true));
+
+        document.querySelectorAll('.btn-srs').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const item = sessionQueue[currentIndex];
+                const dbItem = db.units[currentUnitName].find(i => i.sentence === item.sentence && i.targetRaw === item.targetRaw);
+                
+                if (dbItem) {
+                    if (btn.id === 'mastered-btn') {
+                        dbItem.mastered = true; 
+                        sessionStats.newMastered++; // 実績カウント
+                    } else {
+                        const interval = parseInt(btn.dataset.interval);
+                        dbItem.nextReview = Date.now() + (interval * 1000);
+                    }
+                    saveData();
+                }
+
+                currentIndex++;
+                if (currentIndex >= sessionQueue.length) {
+                    // セッション完了
+                    clearSessionState();
+                    showSummaryModal();
+                } else {
+                    renderCard(false);
+                }
+            });
+        });
+
+        document.getElementById('prev-card-btn').addEventListener('click', () => {
+            if (currentIndex > 0) {
+                currentIndex--;
+                renderCard(false);
+            }
+        });
+
+        // Mode Toggles
+        document.querySelectorAll('.mode-toggle').forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentMode = btn.dataset.mode;
+                document.querySelectorAll('.mode-toggle').forEach(b => {
+                    b.classList.remove('bg-white', 'shadow-sm'); b.classList.add('text-slate-500');
+                });
+                btn.classList.add('bg-white', 'shadow-sm'); btn.classList.remove('text-slate-500');
+                renderCard(isAnswerShown);
+            });
+        });
+
+        // Listen Button
+        document.getElementById('listen-btn').addEventListener('click', () => {
+            if (currentIndex < sessionQueue.length) {
+                const item = sessionQueue[currentIndex];
+                const voiceSetting = document.getElementById('voice-select').value;
+                playOfflineTTS(item.sentence, voiceSetting);
+            }
+        });
+
+        // File Input
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('word-input').value = e.target.result;
+                const name = file.name.replace('.txt', '');
+                document.getElementById('unit-name-input').value = name;
+                document.getElementById('unit-selector').value = ""; 
+            };
+            reader.readAsText(file);
+        });
+
+        // Backup & Restore
+        document.getElementById('export-btn').addEventListener('click', () => {
+            if(Object.keys(db.units).length === 0) return alert("エクスポートするデータがありません / No data to export");
+            const blob = new Blob([JSON.stringify(db)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `anki_backup_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+        });
+
+        document.getElementById('restore-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importedDB = JSON.parse(e.target.result);
+                    if(importedDB && importedDB.units) {
+                        db = importedDB;
+                        saveData();
+                        updateUnitSelector();
+                        clearSessionState();
+                        showSetupScreen();
+                        alert("復元完了 / Restore Success");
+                    } else {
+                        throw new Error("Invalid structure");
+                    }
+                } catch(err) { alert("無効なファイル形式です / Invalid File Format"); }
+            };
+            reader.readAsText(file);
+        });
+
+        // Delete Logic
+        document.getElementById('delete-unit-btn').addEventListener('click', () => {
+            const inputName = document.getElementById('unit-name-input').value.trim();
+            const selectedName = document.getElementById('unit-selector').value;
+            const nameToDelete = inputName || selectedName;
+
+            if (nameToDelete && confirm(`「${nameToDelete}」を削除しますか？ / Delete this unit?`)) {
+                delete db.units[nameToDelete];
+                saveData();
+                
+                document.getElementById('unit-name-input').value = "";
+                updateUnitSelector();
+                updateUnitProgress();
+                
+                if(Object.keys(db.units).length === 0) {
+                    db.lastUnit = "";
+                }
+            } else if (!nameToDelete) {
+                alert("削除するユニットが選択されていません。プルダウンから選択してください。");
+            }
+        });
+
+        // Exit Practice mode
+        document.getElementById('back-to-setup').addEventListener('click', () => {
+            saveSessionState(); // 中断時に保存
+            showSetupScreen();
+        });
+
+        /* =======================================
+           Mastered List Management
+        ======================================= */
+        document.getElementById('back-from-mastered').addEventListener('click', () => {
+            showSetupScreen();
+        });
+
+        document.getElementById('review-mastered-btn').addEventListener('click', showMasteredScreen);
+
+        document.getElementById('export-mastered-btn').addEventListener('click', () => {
+            const currentUnit = document.getElementById('unit-selector').value;
+            let targetUnits = currentUnit ? [currentUnit] : Object.keys(db.units);
+            
+            let exportText = "";
+            targetUnits.forEach(unitName => {
+                const masteredItems = (db.units[unitName] || []).filter(item => item.mastered);
+                masteredItems.forEach(item => {
+                    const transStr = item.translation ? ` | ${item.translation}` : "";
+                    exportText += `${item.targetRaw} : ${item.sentence}${transStr}\n`;
+                });
+            });
+
+            if (!exportText) {
+                alert("指定した範囲に習得済みの単語がありません。 / No mastered words found.");
+                return;
+            }
+
+            const blob = new Blob([exportText], {type: 'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `mastered_${currentUnit || "all"}_${new Date().toISOString().slice(0,10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        function renderMasteredList() {
+            const container = document.getElementById('mastered-list-container');
+            container.innerHTML = '';
+            
+            const currentUnit = document.getElementById('unit-selector').value;
+            let itemsToRender = [];
+            
+            if (currentUnit) {
+                itemsToRender = (db.units[currentUnit] || []).map((item, idx) => ({unit: currentUnit, item, origIndex: idx})).filter(x => x.item.mastered);
+            } else {
+                Object.keys(db.units).forEach(unitName => {
+                    db.units[unitName].forEach((item, idx) => {
+                        if (item.mastered) {
+                            itemsToRender.push({unit: unitName, item, origIndex: idx});
+                        }
+                    });
+                });
+            }
+
+            if (itemsToRender.length === 0) {
+                container.innerHTML = `<div class="p-8 text-center text-sm font-bold text-slate-400">習得済みの単語はありません。<br>No mastered words.</div>`;
+                return;
+            }
+
+            itemsToRender.forEach(({unit, item, origIndex}) => {
+                const row = document.createElement('div');
+                row.className = 'p-4 flex justify-between items-center gap-4 hover:bg-slate-50 transition-colors';
+                row.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-bold text-slate-800 truncate">${item.targetRaw}</div>
+                        <div class="text-xs text-slate-500 truncate mt-1">${item.sentence}</div>
+                        ${!currentUnit ? `<div class="text-[10px] text-blue-500 mt-1">[Unit: ${unit}]</div>` : ''}
+                    </div>
+                    <button class="unmaster-btn flex-shrink-0 px-3 py-2 bg-slate-200 hover:bg-slate-300 active:scale-95 text-slate-700 text-xs font-bold rounded-lg whitespace-nowrap transition-all" data-unit="${unit}" data-index="${origIndex}">
+                        解除 / Unmaster
+                    </button>
+                `;
+                container.appendChild(row);
+            });
+
+            // 解除ボタンのイベント
+            document.querySelectorAll('.unmaster-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const unit = e.currentTarget.dataset.unit;
+                    const idx = e.currentTarget.dataset.index;
+                    if (db.units[unit] && db.units[unit][idx]) {
+                        db.units[unit][idx].mastered = false;
+                        db.units[unit][idx].nextReview = Date.now(); // すぐに復習対象に戻す
+                        saveData();
+                        renderMasteredList(); // リストを再描画
+                    }
+                });
+            });
+        }
+
+    </script>
+</body>
+</html>
