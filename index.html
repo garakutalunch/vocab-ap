@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ANKI Ver. 1.7 - World Traveler</title>
+    <title>ANKI Ver. 1.8 - World Traveler</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
@@ -38,7 +38,7 @@
             <button id="open-guide-btn" class="absolute right-0 top-0 text-[11px] text-slate-500 hover:text-blue-600 font-bold flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-lg shadow-sm transition-colors">
                 📖 Guide
             </button>
-            <h1 class="text-2xl font-black text-blue-600 tracking-tighter mt-4">ANKI Ver. 1.7</h1>
+            <h1 class="text-2xl font-black text-blue-600 tracking-tighter mt-4">ANKI Ver. 1.8</h1>
             <p class="text-xs text-slate-400 font-bold uppercase">Space Repetition Learning Tool</p>
         </header>
 
@@ -281,6 +281,7 @@
                             <li><b>Add Words:</b> Load a .txt file or paste text. Format: <br><code class="bg-slate-100 px-1 rounded text-[10px]">word : sentence | translation</code></li>
                             <li><b>Study:</b> Guess the hidden word, tap "Show Answer", then rate your memory (Again, Hard, Good, Easy).</li>
                             <li><b>Master:</b> Tap "Mastered" when you know a word perfectly. It won't appear again.</li>
+                            <li><b>Auto Backup:</b> Your data is automatically saved to iCloud Files after every session. Filename: <code class="bg-slate-100 px-1 rounded text-[10px]">anki_auto_backup.json</code></li>
                             <li><b>Surprise:</b> Reach milestones to collect world souvenirs!</li>
                         </ul>
                     </div>
@@ -292,6 +293,7 @@
                             <li><b>単語追加:</b> .txtを読み込むか直接入力。形式:<br><code class="bg-slate-100 px-1 rounded text-[10px]">単語 : 例文 | 日本語訳</code></li>
                             <li><b>学習:</b> 隠された単語を推測し「答えを表示」。その後、記憶の定着度合いを選択します。</li>
                             <li><b>習得:</b> 完璧に覚えたら「Mastered」を押すと出題されなくなります。</li>
+                            <li><b>自動バックアップ:</b> セッション終了ごとにデータが自動でダウンロードされます。ファイル名: <code class="bg-slate-100 px-1 rounded text-[10px]">anki_auto_backup.json</code></li>
                             <li><b>お楽しみ:</b> 習得数を重ねてマイルストーンに到達すると、世界のお土産がアンロックされます！</li>
                         </ul>
                     </div>
@@ -353,7 +355,7 @@
 
         // Init
         window.addEventListener('DOMContentLoaded', () => {
-            const saved = localStorage.getItem('anki_v17_db');
+            const saved = localStorage.getItem('anki_v18_db');
             if (saved) {
                 try {
                     db = JSON.parse(saved);
@@ -408,6 +410,25 @@
             renderMasteredList();
         }
 
+
+        // 🔒 Auto Backup Function
+        function triggerAutoBackup() {
+            if (Object.keys(db.units).length === 0) return;
+            try {
+                const blob = new Blob([JSON.stringify(db)], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'anki_auto_backup.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch(e) {
+                console.warn('Auto backup failed:', e);
+            }
+        }
+
         function showSummaryModal() {
             document.getElementById('summary-total').textContent = sessionStats.total;
             document.getElementById('summary-mastered').textContent = sessionStats.newMastered;
@@ -437,16 +458,16 @@
         // Sessions
         function saveSessionState() {
             if (document.getElementById('screen-practice').classList.contains('hidden')) return;
-            localStorage.setItem('anki_v17_session', JSON.stringify({ currentUnitName, sessionQueue, currentIndex, currentMode, isAnswerShown, sessionStats }));
+            localStorage.setItem('anki_v18_session', JSON.stringify({ currentUnitName, sessionQueue, currentIndex, currentMode, isAnswerShown, sessionStats }));
         }
 
         function clearSessionState() {
-            localStorage.removeItem('anki_v17_session');
+            localStorage.removeItem('anki_v18_session');
             document.getElementById('resume-session-container').classList.add('hidden');
         }
 
         function checkSessionState() {
-            const savedStr = localStorage.getItem('anki_v17_session');
+            const savedStr = localStorage.getItem('anki_v18_session');
             const container = document.getElementById('resume-session-container');
             if (savedStr) {
                 try {
@@ -461,7 +482,7 @@
         }
 
         document.getElementById('resume-btn').addEventListener('click', () => {
-            const savedStr = localStorage.getItem('anki_v17_session');
+            const savedStr = localStorage.getItem('anki_v18_session');
             if (savedStr) {
                 const data = JSON.parse(savedStr);
                 currentUnitName = data.currentUnitName; sessionQueue = data.sessionQueue; currentIndex = data.currentIndex;
@@ -481,7 +502,7 @@
         });
 
         function saveData() {
-            localStorage.setItem('anki_v17_db', JSON.stringify(db));
+            localStorage.setItem('anki_v18_db', JSON.stringify(db));
             updateUnitProgress(); updateTotalMasteredBadge();
         }
 
@@ -635,7 +656,9 @@
         function goToNextCard() {
             currentIndex++;
             if (currentIndex >= sessionQueue.length) {
-                clearSessionState(); showSummaryModal();
+                clearSessionState();
+                triggerAutoBackup();
+                showSummaryModal();
             } else renderCard(false);
         }
 
