@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ANKI Ver. 1.8 - World Traveler</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        .card-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
+        .hidden { display: none !important; }
+        .btn-srs { transition: all 0.2s ease; }
+        .btn-srs:active { transform: scale(0.95); }
+        
+        /* サプライズ画面用のアニメーション / Animations for Surprise Modal */
+        @keyframes stamp-drop {
+            0% { transform: scale(3) rotate(-30deg); opacity: 0; }
+            50% { transform: scale(0.9) rotate(-10deg); opacity: 1; }
+            100% { transform: scale(1) rotate(-15deg); opacity: 1; }
+        }
+        .animate-stamp { animation: stamp-drop 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards; }
+        
+        @keyframes pop-up {
+            0% { transform: translateY(50px) scale(0.5); opacity: 0; }
+            60% { transform: translateY(-10px) scale(1.1); opacity: 1; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .animate-pop { animation: pop-up 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        
+        .souvenir-glow { filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.8)); }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans p-2 relative">
+
+    <div id="app" class="max-w-xl mx-auto py-2">
+        
+        <header class="relative text-center mb-6 mt-2">
+            <button id="open-guide-btn" class="absolute right-0 top-0 text-[11px] text-slate-500 hover:text-blue-600 font-bold flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-lg shadow-sm transition-colors">
+                📖 Guide
+            </button>
+            <h1 class="text-2xl font-black text-blue-600 tracking-tighter mt-4">ANKI Ver. 1.8</h1>
+            <p class="text-xs text-slate-400 font-bold uppercase">Space Repetition Learning Tool</p>
+        </header>
+
+        <div id="screen-setup" class="space-y-4">
+            
+            <div id="resume-session-container" class="hidden mb-2 p-4 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
+                <p class="text-xs text-blue-700 font-bold mb-2">💡 学習途中のセッションがあります / Session in progress</p>
+                <button id="resume-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow transition-all flex justify-between items-center px-4">
+                    <span>▶ 再開する / Resume</span>
+                    <span id="resume-progress-text" class="text-xs bg-blue-800/50 px-2 py-1 rounded-md">0 / 0</span>
+                </button>
+                <div class="text-right mt-2">
+                    <button id="discard-session-btn" class="text-[10px] text-slate-400 hover:text-red-500 py-1 underline">破棄して新しく始める / Discard</button>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="text-sm font-bold mb-3 flex justify-between">
+                    <span>ユニット選択 / Select Unit</span>
+                    <button id="delete-unit-btn" class="text-red-400 hover:text-red-600 text-[10px] bg-red-50 px-2 py-1 rounded">🗑️ 削除 / Delete</button>
+                </h2>
+                <select id="unit-selector" class="w-full p-3 border rounded-lg bg-slate-50 mb-4 focus:ring-2 focus:ring-blue-500 outline-none"></select>
+
+                <div id="unit-progress-container" class="hidden mb-5 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                    <div class="flex justify-between text-[11px] font-bold text-slate-500 mb-1.5">
+                        <span>ユニット習得率 / Unit Progress</span>
+                        <span id="unit-progress-text" class="text-blue-600">0 / 0 (0%)</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-2">
+                        <div id="unit-progress-bar" class="bg-gradient-to-r from-blue-400 to-blue-600 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <h2 class="text-sm font-bold mb-2">新規追加 / Add New</h2>
+                <input type="text" id="unit-name-input" placeholder="新しいユニット名 / New Unit Name" class="w-full p-3 border rounded-lg mb-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                
+                <div class="flex gap-2 mb-3">
+                    <label class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-center py-2 rounded-lg cursor-pointer text-xs font-bold border border-dashed border-slate-300 transition-colors">
+                        📁 ファイル選択 / Open .txt
+                        <input type="file" id="file-input" accept=".txt" class="hidden">
+                    </label>
+                </div>
+
+                <textarea id="word-input" rows="4" class="w-full p-3 border rounded-lg bg-slate-50 font-mono text-[11px] mb-3" placeholder="word: sentence | translation&#10;apple: I eat an apple. | りんご"></textarea>
+                
+                <div class="grid grid-cols-2 gap-3 mb-2">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400">音声 / Voice</label>
+                        <select id="voice-select" class="w-full p-2 border rounded text-[10px] font-bold bg-white text-slate-700 outline-none">
+                            <option value="en-GB-Female">ENG (Female) / 英語(女)</option>
+                            <option value="en-GB-Male">ENG (Male) / 英語(男)</option>
+                            <option value="ja-JP-Female">JPN (Female) / 日本語(女)</option>
+                            <option value="ja-JP-Male">JPN (Male) / 日本語(男)</option>
+                            <option value="zh-CN-Female">CHN (Female) / 中国語(女)</option>
+                            <option value="zh-CN-Male">CHN (Male) / 中国語(男)</option>
+                        </select>
+                    </div>
+                    <button id="start-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition-all text-sm">
+                        開始 / Start
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-sm font-bold text-slate-700">習得済み / Mastered</h2>
+                    <div class="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-100" id="total-mastered-badge">
+                        </div>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <button id="review-mastered-btn" class="w-full bg-slate-50 text-slate-700 border border-slate-200 py-2.5 rounded-lg text-xs font-bold hover:bg-slate-100 transition-colors">
+                        リスト確認・解除 / Review & Unmaster
+                    </button>
+                    <button id="export-mastered-btn" class="w-full bg-amber-50 text-amber-700 border border-amber-200 py-2.5 rounded-lg text-xs font-bold hover:bg-amber-100 transition-colors">
+                        書き出し / Export List
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex justify-between gap-4 px-2 pb-8">
+                <button id="export-btn" class="text-[10px] text-slate-500 hover:text-blue-600 font-bold bg-slate-100 px-3 py-1.5 rounded">📤 バックアップ / Export Backup</button>
+                <label class="text-[10px] text-slate-500 hover:text-blue-600 cursor-pointer font-bold bg-slate-100 px-3 py-1.5 rounded">
+                    📥 復元 / Restore Import
+                    <input type="file" id="restore-input" accept=".json" class="hidden">
+                </label>
+            </div>
+        </div>
+
+        <div id="screen-practice" class="hidden flex flex-col min-h-[85vh]">
+            <div class="flex items-center justify-between px-2 mb-4">
+                <div class="flex gap-3">
+                    <button id="back-to-setup" class="text-slate-400 hover:text-slate-800 text-xs font-bold bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm">← 中断 / Exit</button>
+                    <button id="prev-card-btn" class="text-blue-500 hover:text-blue-700 text-xs font-bold hidden bg-blue-50 px-3 py-1 rounded-full">◀ 前へ / Prev</button>
+                </div>
+                <div id="progress-indicator" class="text-[10px] font-black bg-slate-200 px-3 py-1 rounded-full">0/0</div>
+            </div>
+
+            <div class="flex-grow space-y-4">
+                <div class="bg-white p-6 rounded-3xl card-shadow flex flex-col items-center justify-center text-center relative border border-slate-100 min-h-[220px]">
+                    <div id="display-text" class="text-xl font-bold leading-relaxed mb-4 break-words w-full"></div>
+                    <div id="display-translation" class="text-slate-400 text-sm font-medium mb-4 min-h-[1.5rem]"></div>
+                    
+                    <button id="listen-btn" class="bg-blue-50 text-blue-600 py-2 px-6 rounded-full transition-colors hover:bg-blue-100">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-3 gap-1 p-1 bg-slate-200 rounded-xl text-[10px] font-bold mb-4">
+                    <button data-mode="all-hidden" class="mode-toggle py-2 rounded-lg text-slate-500">全部非表示<br>All Hidden</button>
+                    <button data-mode="cloze" class="mode-toggle py-2 rounded-lg bg-white shadow-sm">虫食い<br>Cloze</button>
+                    <button data-mode="hint" class="mode-toggle py-2 rounded-lg text-slate-500">頭文字ヒント<br>Hint</button>
+                </div>
+            </div>
+
+            <div id="answer-controls" class="sticky bottom-0 bg-slate-50 pt-2 pb-6 z-10 w-full mt-4 border-t border-slate-200/50">
+                <button id="show-answer-btn" class="w-full py-4 bg-slate-800 hover:bg-slate-700 transition-colors text-white rounded-2xl font-bold shadow-lg text-sm">
+                    答えを表示 / Show Answer
+                </button>
+                
+                <div id="srs-buttons" class="hidden space-y-2">
+                    <div class="grid grid-cols-4 gap-2">
+                        <button data-interval="60" class="btn-srs bg-rose-100 text-rose-600 p-2 rounded-xl flex flex-col items-center">
+                            <span class="text-[11px] font-bold">Again</span>
+                            <span class="text-[9px]">1m</span>
+                        </button>
+                        <button data-interval="600" class="btn-srs bg-orange-100 text-orange-600 p-2 rounded-xl flex flex-col items-center">
+                            <span class="text-[11px] font-bold">Hard</span>
+                            <span class="text-[9px]">10m</span>
+                        </button>
+                        <button data-interval="86400" class="btn-srs bg-green-100 text-green-600 p-2 rounded-xl flex flex-col items-center">
+                            <span class="text-[11px] font-bold">Good</span>
+                            <span class="text-[9px]">1d</span>
+                        </button>
+                        <button data-interval="345600" class="btn-srs bg-sky-100 text-sky-600 p-2 rounded-xl flex flex-col items-center">
+                            <span class="text-[11px] font-bold">Easy</span>
+                            <span class="text-[9px]">4d</span>
+                        </button>
+                    </div>
+                    <button id="mastered-btn" class="btn-srs w-full bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm border border-amber-200 hover:brightness-95 text-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        習得済み / Mastered
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-mastered" class="hidden flex flex-col h-[90vh]">
+            <div class="flex items-center justify-between px-2 mb-4 shrink-0">
+                <button id="back-from-mastered" class="text-slate-400 hover:text-slate-800 text-xs font-bold bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm">← 戻る / Back</button>
+                <div class="text-sm font-bold text-slate-600">習得済みリスト / Mastered List</div>
+            </div>
+            
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex-grow flex flex-col">
+                <div id="mastered-list-container" class="overflow-y-auto divide-y divide-slate-100 flex-grow p-2">
+                    </div>
+            </div>
+        </div>
+
+        <div id="milestone-modal" class="hidden fixed inset-0 bg-slate-900/85 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl p-6 w-full max-w-sm card-shadow text-center relative overflow-hidden">
+                <div class="absolute -top-16 -right-16 text-9xl opacity-10 rotate-12">✈️</div>
+                <div class="absolute -bottom-16 -left-16 text-9xl opacity-10 -rotate-12">🌍</div>
+                
+                <h2 class="text-xl font-black text-slate-800 mb-1 relative z-10 uppercase tracking-widest border-b-2 border-slate-100 pb-2">
+                    Passport Stamp
+                </h2>
+                <p class="text-[10px] text-blue-500 mb-4 font-bold relative z-10 bg-blue-50 inline-block px-2 py-0.5 rounded-full mt-2">
+                    🎉 新しいスタンプを獲得 / New Stamp Unlocked!
+                </p>
+                
+                <div id="souvenir-bg" class="rounded-2xl p-6 shadow-inner border mb-6 relative z-10 bg-gradient-to-br">
+                    <div id="stamp-mark" class="absolute top-2 right-2 text-rose-600 font-black border-4 border-rose-600 rounded-full w-16 h-16 flex items-center justify-center opacity-0 text-[10px] tracking-tighter bg-white/50 backdrop-blur-sm z-20">
+                        VISITED
+                    </div>
+                    
+                    <div class="text-[10px] font-black text-slate-600/80 uppercase tracking-widest mb-4 border-b border-slate-400/20 pb-1" id="milestone-country">
+                        Country
+                    </div>
+                    
+                    <div id="milestone-graphic" class="text-8xl drop-shadow-2xl mb-4 souvenir-glow mx-auto opacity-0 inline-block">
+                        🎁
+                    </div>
+                    
+                    <div class="text-sm font-black text-slate-800 bg-white/60 py-2 px-3 rounded-lg backdrop-blur-sm" id="milestone-item-name">
+                        Item Name
+                    </div>
+                </div>
+                
+                <div class="mb-6 flex items-center justify-center gap-3">
+                    <div class="text-left">
+                        <p class="text-[9px] text-slate-500 font-bold">累計習得数<br>Total Mastered</p>
+                    </div>
+                    <div class="flex items-baseline justify-center gap-1">
+                        <span id="milestone-number" class="text-4xl font-black text-slate-800 font-mono">0</span>
+                    </div>
+                </div>
+                
+                <button id="close-milestone-btn" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg relative z-10 text-sm">
+                    旅を続ける / Continue Journey
+                </button>
+            </div>
+        </div>
+
+        <div id="session-summary-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl p-6 w-full max-w-sm card-shadow text-center">
+                <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span class="text-3xl">🏁</span>
+                </div>
+                <h2 class="text-lg font-black text-slate-800 mb-2">完了 / Session Complete!</h2>
+                
+                <div class="bg-slate-50 rounded-xl p-4 space-y-3 mb-6 border border-slate-100 mt-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-600">学習数 / Studied</span>
+                        <span id="summary-total" class="text-base font-black text-slate-800">0</span>
+                    </div>
+                    <div class="h-px bg-slate-200 w-full"></div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-amber-600">新規習得 / New Mastered</span>
+                        <span id="summary-mastered" class="text-base font-black text-amber-600">0</span>
+                    </div>
+                </div>
+                
+                <button id="close-summary-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg text-sm">
+                    戻る / Return to Menu
+                </button>
+            </div>
+        </div>
+
+        <div id="guide-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl">
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+                    <h2 class="font-bold text-slate-800 text-sm">📖 Quick Guide / 使い方</h2>
+                    <button id="close-guide-btn" class="text-slate-400 hover:text-slate-600 text-2xl font-bold leading-none">&times;</button>
+                </div>
+                <div class="p-5 overflow-y-auto text-xs text-slate-600 space-y-6 leading-relaxed">
+                    <div>
+                        <h3 class="font-black text-blue-600 mb-1">ENG: How to use</h3>
+                        <p class="mb-2">✅ Works fully offline!</p>
+                        <ul class="mb-3 space-y-1 list-disc pl-4">
+                            <li><b>Add Words:</b> Load a .txt file or paste text. Format: <br><code class="bg-slate-100 px-1 rounded text-[10px]">word : sentence | translation</code></li>
+                            <li><b>Study:</b> Guess the hidden word, tap "Show Answer", then rate your memory (Again, Hard, Good, Easy).</li>
+                            <li><b>Master:</b> Tap "Mastered" when you know a word perfectly. It won't appear again.</li>
+                            <li><b>Auto Backup:</b> Your data is automatically saved to iCloud Files after every session. Filename: <code class="bg-slate-100 px-1 rounded text-[10px]">anki_auto_backup.json</code></li>
+                            <li><b>Surprise:</b> Reach milestones to collect world souvenirs!</li>
+                        </ul>
+                    </div>
+                    <div class="h-px w-full bg-slate-200"></div>
+                    <div>
+                        <h3 class="font-black text-blue-600 mb-1">JPN: 使い方</h3>
+                        <p class="mb-2">✅ オフラインで動作します！</p>
+                        <ul class="mb-3 space-y-1 list-disc pl-4">
+                            <li><b>単語追加:</b> .txtを読み込むか直接入力。形式:<br><code class="bg-slate-100 px-1 rounded text-[10px]">単語 : 例文 | 日本語訳</code></li>
+                            <li><b>学習:</b> 隠された単語を推測し「答えを表示」。その後、記憶の定着度合いを選択します。</li>
+                            <li><b>習得:</b> 完璧に覚えたら「Mastered」を押すと出題されなくなります。</li>
+                            <li><b>自動バックアップ:</b> セッション終了ごとにデータが自動でダウンロードされます。ファイル名: <code class="bg-slate-100 px-1 rounded text-[10px]">anki_auto_backup.json</code></li>
+                            <li><b>お楽しみ:</b> 習得数を重ねてマイルストーンに到達すると、世界のお土産がアンロックされます！</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Data Structure
+        let db = {
+            units: {}, 
+            lastUnit: ""
+        };
+
+        let currentUnitName = "";
+        let sessionQueue = [];
+        let currentIndex = 0;
+        let currentMode = 'cloze';
+        let isAnswerShown = false;
+        let sessionStats = { total: 0, newMastered: 0 };
+
+        // 🌟 Milestone Data (World Traveler Theme) 🌟
+        const milestoneData = {
+            10: { country: "🇬🇧 UK / イギリス", item: "☕", name: "Tea & Scones<br><span class='text-[10px] font-normal text-slate-500'>紅茶とスコーン</span>", color: "from-blue-50 to-red-50 border-blue-200" },
+            30: { country: "🇫🇷 France / フランス", item: "🥖", name: "Fresh Croissant<br><span class='text-[10px] font-normal text-slate-500'>焼きたてのクロワッサン</span>", color: "from-slate-50 to-blue-50 border-slate-200" },
+            60: { country: "🇪🇬 Egypt / エジプト", item: "🏺", name: "Mini Pyramid<br><span class='text-[10px] font-normal text-slate-500'>ピラミッドの置物</span>", color: "from-yellow-50 to-orange-100 border-yellow-200" },
+            100: { country: "🇯🇵 Japan / 日本", item: "🍣", name: "Miniature Sushi<br><span class='text-[10px] font-normal text-slate-500'>お寿司のミニチュア</span>", color: "from-rose-50 to-white border-rose-200" },
+            300: { country: "🇺🇸 USA / アメリカ", item: "🗽", name: "Statue of Liberty<br><span class='text-[10px] font-normal text-slate-500'>自由の女神</span>", color: "from-blue-50 to-indigo-100 border-indigo-200" },
+            600: { country: "🇮🇹 Italy / イタリア", item: "🍕", name: "Perfect Pizza<br><span class='text-[10px] font-normal text-slate-500'>完璧なピザスライス</span>", color: "from-green-50 to-red-50 border-green-200" },
+            1000: { country: "🇮🇳 India / インド", item: "🍛", name: "Magic Lamp & Curry<br><span class='text-[10px] font-normal text-slate-500'>魔法のランプとカレー</span>", color: "from-orange-50 to-yellow-200 border-orange-200" }
+        };
+
+        function getMilestoneInfo(count) {
+            if (milestoneData[count]) return milestoneData[count];
+            // 2000以降は1000区切りでレアアイテム
+            if (count >= 2000 && count % 1000 === 0) {
+                return { 
+                    country: "🗺️ Unknown / 秘境", 
+                    item: "💎", 
+                    name: "Rare Gem of Wisdom<br><span class='text-[10px] font-normal text-slate-500'>知恵の幻宝石</span>", 
+                    color: "from-purple-100 to-pink-100 border-purple-200" 
+                };
+            }
+            return null;
+        }
+
+        function getNextMilestone(current) {
+            const keys = Object.keys(milestoneData).map(Number).sort((a,b)=>a-b);
+            for (let m of keys) {
+                if (current < m) return m;
+            }
+            // 1000以上は次の1000単位
+            return Math.ceil((current + 1) / 1000) * 1000;
+        }
+
+        window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+
+        // Init
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('anki_v18_db');
+            if (saved) {
+                try {
+                    db = JSON.parse(saved);
+                    updateUnitSelector();
+                    if (db.lastUnit && db.units[db.lastUnit]) {
+                        document.getElementById('unit-selector').value = db.lastUnit;
+                    }
+                } catch(e) {}
+            }
+            updateTotalMasteredBadge();
+            updateUnitProgress();
+            checkSessionState();
+        });
+
+        function getTotalMasteredCount() {
+            let count = 0;
+            Object.values(db.units).forEach(unit => { count += unit.filter(item => item.mastered).length; });
+            return count;
+        }
+
+        function updateTotalMasteredBadge() {
+            const badge = document.getElementById('total-mastered-badge');
+            if(badge) {
+                const total = getTotalMasteredCount();
+                const next = getNextMilestone(total);
+                badge.innerHTML = `👑 累計/Total: ${total} <span class="text-[9px] text-amber-500 ml-1">Next: ${next}</span>`;
+            }
+        }
+
+        // Screens
+        function showSetupScreen() {
+            document.getElementById('screen-practice').classList.add('hidden');
+            document.getElementById('screen-mastered').classList.add('hidden');
+            document.getElementById('session-summary-modal').classList.add('hidden');
+            document.getElementById('screen-setup').classList.remove('hidden');
+            updateUnitSelector();
+            updateTotalMasteredBadge();
+            updateUnitProgress();
+            checkSessionState();
+        }
+
+        function showPracticeScreen() {
+            document.getElementById('screen-setup').classList.add('hidden');
+            document.getElementById('screen-mastered').classList.add('hidden');
+            document.getElementById('screen-practice').classList.remove('hidden');
+        }
+
+        function showMasteredScreen() {
+            document.getElementById('screen-setup').classList.add('hidden');
+            document.getElementById('screen-practice').classList.add('hidden');
+            document.getElementById('screen-mastered').classList.remove('hidden');
+            renderMasteredList();
+        }
+
+
+        // 🔒 Auto Backup Function
+        function triggerAutoBackup() {
+            if (Object.keys(db.units).length === 0) return;
+            try {
+                const blob = new Blob([JSON.stringify(db)], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'anki_auto_backup.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch(e) {
+                console.warn('Auto backup failed:', e);
+            }
+        }
+
+        function showSummaryModal() {
+            document.getElementById('summary-total').textContent = sessionStats.total;
+            document.getElementById('summary-mastered').textContent = sessionStats.newMastered;
+            document.getElementById('session-summary-modal').classList.remove('hidden');
+        }
+
+        document.getElementById('close-summary-btn').addEventListener('click', showSetupScreen);
+        
+        // Guide
+        document.getElementById('open-guide-btn').addEventListener('click', () => document.getElementById('guide-modal').classList.remove('hidden'));
+        document.getElementById('close-guide-btn').addEventListener('click', () => document.getElementById('guide-modal').classList.add('hidden'));
+
+        function updateUnitProgress() {
+            const unitName = document.getElementById('unit-selector').value;
+            const progressContainer = document.getElementById('unit-progress-container');
+            if (!unitName || !db.units[unitName] || db.units[unitName].length === 0) {
+                progressContainer.classList.add('hidden'); return;
+            }
+            const total = db.units[unitName].length;
+            const mastered = db.units[unitName].filter(item => item.mastered).length;
+            const percent = total > 0 ? Math.round((mastered / total) * 100) : 0;
+            document.getElementById('unit-progress-text').textContent = `${mastered} / ${total} (${percent}%)`;
+            document.getElementById('unit-progress-bar').style.width = `${percent}%`;
+            progressContainer.classList.remove('hidden');
+        }
+
+        // Sessions
+        function saveSessionState() {
+            if (document.getElementById('screen-practice').classList.contains('hidden')) return;
+            localStorage.setItem('anki_v18_session', JSON.stringify({ currentUnitName, sessionQueue, currentIndex, currentMode, isAnswerShown, sessionStats }));
+        }
+
+        function clearSessionState() {
+            localStorage.removeItem('anki_v18_session');
+            document.getElementById('resume-session-container').classList.add('hidden');
+        }
+
+        function checkSessionState() {
+            const savedStr = localStorage.getItem('anki_v18_session');
+            const container = document.getElementById('resume-session-container');
+            if (savedStr) {
+                try {
+                    const data = JSON.parse(savedStr);
+                    if (data.sessionQueue && data.sessionQueue.length > 0 && data.currentIndex < data.sessionQueue.length) {
+                        document.getElementById('resume-progress-text').textContent = `${data.currentIndex + 1} / ${data.sessionQueue.length}`;
+                        container.classList.remove('hidden'); return;
+                    }
+                } catch(e) {}
+            }
+            container.classList.add('hidden');
+        }
+
+        document.getElementById('resume-btn').addEventListener('click', () => {
+            const savedStr = localStorage.getItem('anki_v18_session');
+            if (savedStr) {
+                const data = JSON.parse(savedStr);
+                currentUnitName = data.currentUnitName; sessionQueue = data.sessionQueue; currentIndex = data.currentIndex;
+                currentMode = data.currentMode || 'cloze'; isAnswerShown = data.isAnswerShown || false;
+                sessionStats = data.sessionStats || { total: sessionQueue.length, newMastered: 0 };
+                
+                document.querySelectorAll('.mode-toggle').forEach(b => {
+                    b.classList.remove('bg-white', 'shadow-sm'); b.classList.add('text-slate-500');
+                    if (b.dataset.mode === currentMode) { b.classList.add('bg-white', 'shadow-sm'); b.classList.remove('text-slate-500'); }
+                });
+                showPracticeScreen(); renderCard(isAnswerShown);
+            }
+        });
+
+        document.getElementById('discard-session-btn').addEventListener('click', () => {
+            if(confirm("セッションを破棄しますか？ / Discard current session?")) clearSessionState();
+        });
+
+        function saveData() {
+            localStorage.setItem('anki_v18_db', JSON.stringify(db));
+            updateUnitProgress(); updateTotalMasteredBadge();
+        }
+
+        function updateUnitSelector() {
+            const selector = document.getElementById('unit-selector');
+            selector.innerHTML = '<option value="">--- 選択 / Select ---</option>';
+            Object.keys(db.units).forEach(name => {
+                const opt = document.createElement('option'); opt.value = name; opt.textContent = name; selector.appendChild(opt);
+            });
+            if (db.lastUnit && db.units[db.lastUnit]) selector.value = db.lastUnit;
+        }
+
+        document.getElementById('unit-selector').addEventListener('change', (e) => {
+            if (e.target.value !== "") { document.getElementById('unit-name-input').value = ""; db.lastUnit = e.target.value; saveData(); } 
+            else updateUnitProgress();
+        });
+
+        document.getElementById('unit-name-input').addEventListener('input', (e) => {
+            if (e.target.value.trim() !== "") document.getElementById('unit-selector').value = "";
+        });
+
+        function playOfflineTTS(text, voiceSetting) {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            const voices = window.speechSynthesis.getVoices();
+            let lang = 'en-US', gender = 'female';
+            if (voiceSetting.includes('Male')) gender = 'male';
+            if (voiceSetting.includes('en-GB')) lang = 'en-GB';
+            else if (voiceSetting.includes('ja-JP')) lang = 'ja-JP';
+            else if (voiceSetting.includes('zh-CN')) lang = 'zh-CN';
+            
+            utterance.lang = lang;
+            let available = voices.filter(v => v.lang.replace('_', '-').toLowerCase().startsWith(lang.substring(0, 2)));
+            const maleNames = ['daniel', 'arthur', 'george', 'ichiro', 'kangkang', 'male', 'mac'];
+            const femaleNames = ['martha', 'serena', 'karen', 'kyoko', 'siri', 'samantha', 'female', 'ting-ting'];
+
+            let selected = available.find(v => (gender === 'male' ? maleNames : femaleNames).some(n => v.name.toLowerCase().includes(n)));
+            if (!selected && available.length > 0) selected = available[0];
+            if (selected) utterance.voice = selected;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            const inputName = document.getElementById('unit-name-input').value.trim();
+            const selectedName = document.getElementById('unit-selector').value;
+            const text = document.getElementById('word-input').value.trim();
+            
+            currentUnitName = inputName || selectedName || "Default Unit";
+
+            if (text) {
+                const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+                const items = lines.map(line => {
+                    const match = line.match(/[:\t：]/);
+                    let left = match ? line.substring(0, match.index).trim() : line;
+                    let right = match ? line.substring(match.index + 1).trim() : line;
+                    
+                    let sentence = right, trans = "";
+                    const transMatch = right.match(/[|｜\/／]/);
+                    if (transMatch) {
+                        sentence = right.substring(0, transMatch.index).trim();
+                        trans = right.substring(transMatch.index + 1).trim();
+                    }
+                    let targetWord = left.split(/[\s/（(]/)[0].trim() || left;
+
+                    return { targetRaw: left, targetWord, sentence, translation: trans, nextReview: 0, mastered: false };
+                }).filter(i => i.sentence.length > 0); 
+
+                if (items.length > 0) {
+                    if (!db.units[currentUnitName]) db.units[currentUnitName] = [];
+                    const existing = new Set(db.units[currentUnitName].map(i => i.sentence));
+                    const newItems = items.filter(i => !existing.has(i.sentence));
+                    if (newItems.length > 0) {
+                        db.units[currentUnitName] = [...db.units[currentUnitName], ...newItems];
+                        document.getElementById('word-input').value = ""; document.getElementById('unit-name-input').value = "";
+                        updateUnitSelector(); document.getElementById('unit-selector').value = currentUnitName;
+                    }
+                }
+            }
+
+            if (!db.units[currentUnitName] || db.units[currentUnitName].length === 0) return alert(`No valid data in unit: ${currentUnitName}`);
+
+            db.lastUnit = currentUnitName; saveData();
+            const now = Date.now();
+            sessionQueue = db.units[currentUnitName].filter(i => i.nextReview <= now && !i.mastered).sort(() => Math.random() - 0.5);
+
+            if (sessionQueue.length === 0) {
+                if(!confirm("No cards due. Study all unmastered? / 未習得をすべて学習しますか？")) return;
+                sessionQueue = db.units[currentUnitName].filter(i => !i.mastered).sort(() => Math.random() - 0.5);
+                if (sessionQueue.length === 0) return alert("🎉 All words in this unit are Mastered!");
+            }
+
+            currentIndex = 0; isAnswerShown = false; sessionStats = { total: sessionQueue.length, newMastered: 0 };
+            showPracticeScreen(); renderCard(false);
+        });
+
+        function renderCard(showAnswer = false) {
+            isAnswerShown = showAnswer;
+            if(currentIndex >= sessionQueue.length) return;
+            const item = sessionQueue[currentIndex];
+            const display = document.getElementById('display-text');
+            
+            document.getElementById('display-translation').innerText = item.translation || "";
+            document.getElementById('prev-card-btn').classList.toggle('hidden', currentIndex === 0);
+
+            if (showAnswer) {
+                display.innerHTML = `<div class="text-lg text-blue-600 mb-2">${item.targetRaw}</div><div>${item.sentence}</div>`;
+            } else {
+                const target = item.targetWord;
+                const regex = new RegExp(target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+                if (currentMode === 'all-hidden') display.innerText = `[ ${'_'.repeat(target.length)} ]`;
+                else if (currentMode === 'cloze') display.innerText = (target === item.sentence) ? `[ ${'_'.repeat(target.length)} ]` : item.sentence.replace(regex, (m) => `[ ${'_'.repeat(m.length)} ]`);
+                else if (currentMode === 'hint') display.innerText = (target === item.sentence) ? `[ ${target[0]}${'_'.repeat(target.length - 1)} ]` : item.sentence.replace(regex, (m) => `[ ${m[0]}${'_'.repeat(m.length-1)} ]`);
+            }
+
+            document.getElementById('progress-indicator').textContent = `${currentIndex + 1} / ${sessionQueue.length}`;
+            document.getElementById('show-answer-btn').classList.toggle('hidden', showAnswer);
+            document.getElementById('srs-buttons').classList.toggle('hidden', !showAnswer);
+            saveSessionState();
+        }
+
+        // 🌟 Surprise Trigger 🌟
+        function showMilestoneSurprise(count, info) {
+            document.getElementById('milestone-number').textContent = count;
+            document.getElementById('milestone-country').innerHTML = info.country;
+            document.getElementById('milestone-item-name').innerHTML = info.name;
+            
+            const graphic = document.getElementById('milestone-graphic');
+            graphic.innerHTML = info.item;
+            
+            // Reset animations
+            graphic.classList.remove('animate-pop');
+            void graphic.offsetWidth; // trigger reflow
+            graphic.classList.add('animate-pop');
+            
+            const stamp = document.getElementById('stamp-mark');
+            stamp.classList.remove('animate-stamp');
+            void stamp.offsetWidth;
+            stamp.classList.add('animate-stamp');
+
+            const bg = document.getElementById('souvenir-bg');
+            bg.className = `rounded-2xl p-6 shadow-inner border mb-6 relative z-10 bg-gradient-to-br ${info.color}`;
+
+            document.getElementById('milestone-modal').classList.remove('hidden');
+
+            if (typeof confetti !== 'undefined') {
+                confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, zIndex: 200, colors: ['#3b82f6', '#ef4444', '#f59e0b', '#10b981'] });
+            }
+        }
+
+        function goToNextCard() {
+            currentIndex++;
+            if (currentIndex >= sessionQueue.length) {
+                clearSessionState();
+                triggerAutoBackup();
+                showSummaryModal();
+            } else renderCard(false);
+        }
+
+        document.getElementById('close-milestone-btn').addEventListener('click', () => {
+            document.getElementById('milestone-modal').classList.add('hidden');
+            goToNextCard();
+        });
+
+        document.getElementById('show-answer-btn').addEventListener('click', () => renderCard(true));
+
+        document.querySelectorAll('.btn-srs').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const item = sessionQueue[currentIndex];
+                const dbItem = db.units[currentUnitName].find(i => i.sentence === item.sentence && i.targetRaw === item.targetRaw);
+                
+                if (dbItem) {
+                    if (btn.id === 'mastered-btn') {
+                        dbItem.mastered = true; sessionStats.newMastered++; saveData();
+                        const totalMastered = getTotalMasteredCount();
+                        const milestoneInfo = getMilestoneInfo(totalMastered);
+                        if (milestoneInfo) {
+                            showMilestoneSurprise(totalMastered, milestoneInfo);
+                            return; // 花火待機
+                        }
+                    } else {
+                        dbItem.nextReview = Date.now() + (parseInt(btn.dataset.interval) * 1000);
+                        saveData();
+                    }
+                }
+                goToNextCard();
+            });
+        });
+
+        document.getElementById('prev-card-btn').addEventListener('click', () => {
+            if (currentIndex > 0) { currentIndex--; renderCard(false); }
+        });
+
+        document.querySelectorAll('.mode-toggle').forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentMode = btn.dataset.mode;
+                document.querySelectorAll('.mode-toggle').forEach(b => { b.classList.remove('bg-white', 'shadow-sm'); b.classList.add('text-slate-500'); });
+                btn.classList.add('bg-white', 'shadow-sm'); btn.classList.remove('text-slate-500');
+                renderCard(isAnswerShown);
+            });
+        });
+
+        document.getElementById('listen-btn').addEventListener('click', () => {
+            if (currentIndex < sessionQueue.length) playOfflineTTS(sessionQueue[currentIndex].sentence, document.getElementById('voice-select').value);
+        });
+
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                document.getElementById('word-input').value = ev.target.result;
+                document.getElementById('unit-name-input').value = file.name.replace('.txt', '');
+                document.getElementById('unit-selector').value = ""; 
+            };
+            reader.readAsText(file);
+        });
+
+        document.getElementById('export-btn').addEventListener('click', () => {
+            if(Object.keys(db.units).length === 0) return alert("No data to export");
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(db)], {type: 'application/json'}));
+            a.download = `anki_backup_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+        });
+
+        document.getElementById('restore-input').addEventListener('change', (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const imported = JSON.parse(ev.target.result);
+                    if(imported && imported.units) { db = imported; saveData(); updateUnitSelector(); clearSessionState(); showSetupScreen(); alert("Restore Success / 復元完了"); } 
+                    else throw new Error();
+                } catch(err) { alert("Invalid File Format / 無効なファイル"); }
+            };
+            reader.readAsText(file);
+        });
+
+        document.getElementById('delete-unit-btn').addEventListener('click', () => {
+            const name = document.getElementById('unit-name-input').value.trim() || document.getElementById('unit-selector').value;
+            if (name && confirm(`Delete [${name}] ?`)) {
+                delete db.units[name]; saveData();
+                document.getElementById('unit-name-input').value = ""; updateUnitSelector(); updateUnitProgress();
+                if(Object.keys(db.units).length === 0) db.lastUnit = "";
+            }
+        });
+
+        document.getElementById('back-to-setup').addEventListener('click', () => { saveSessionState(); showSetupScreen(); });
+        document.getElementById('back-from-mastered').addEventListener('click', showSetupScreen);
+        document.getElementById('review-mastered-btn').addEventListener('click', showMasteredScreen);
+
+        document.getElementById('export-mastered-btn').addEventListener('click', () => {
+            const currentUnit = document.getElementById('unit-selector').value;
+            let targetUnits = currentUnit ? [currentUnit] : Object.keys(db.units);
+            let exportText = "";
+            targetUnits.forEach(u => {
+                (db.units[u] || []).filter(i => i.mastered).forEach(i => {
+                    exportText += `${i.targetRaw} : ${i.sentence}${i.translation ? ` | ${i.translation}` : ""}\n`;
+                });
+            });
+            if (!exportText) return alert("No mastered words found. / 習得済みの単語がありません。");
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([exportText], {type: 'text/plain'}));
+            a.download = `mastered_${currentUnit || "all"}_${new Date().toISOString().slice(0,10)}.txt`;
+            a.click();
+        });
+
+        function renderMasteredList() {
+            const container = document.getElementById('mastered-list-container'); container.innerHTML = '';
+            const currentUnit = document.getElementById('unit-selector').value;
+            let itemsToRender = [];
+            
+            if (currentUnit) {
+                itemsToRender = (db.units[currentUnit] || []).map((item, idx) => ({unit: currentUnit, item, origIndex: idx})).filter(x => x.item.mastered);
+            } else {
+                Object.keys(db.units).forEach(u => db.units[u].forEach((item, idx) => { if (item.mastered) itemsToRender.push({unit: u, item, origIndex: idx}); }));
+            }
+
+            if (itemsToRender.length === 0) {
+                container.innerHTML = `<div class="p-8 text-center text-xs font-bold text-slate-400">No mastered words.<br>習得済みの単語はありません。</div>`; return;
+            }
+
+            itemsToRender.forEach(({unit, item, origIndex}) => {
+                const row = document.createElement('div');
+                row.className = 'p-3 flex justify-between items-center gap-3 hover:bg-slate-50 border-b border-slate-50';
+                row.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <div class="text-[13px] font-bold text-slate-800 truncate">${item.targetRaw}</div>
+                        <div class="text-[11px] text-slate-500 truncate mt-0.5">${item.sentence}</div>
+                    </div>
+                    <button class="unmaster-btn flex-shrink-0 px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded-md whitespace-nowrap" data-unit="${unit}" data-index="${origIndex}">
+                        解除 / Unmaster
+                    </button>
+                `;
+                container.appendChild(row);
+            });
+
+            document.querySelectorAll('.unmaster-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const u = e.currentTarget.dataset.unit, idx = e.currentTarget.dataset.index;
+                    if (db.units[u] && db.units[u][idx]) {
+                        db.units[u][idx].mastered = false; db.units[u][idx].nextReview = Date.now();
+                        saveData(); renderMasteredList();
+                    }
+                });
+            });
+        }
+    </script>
+</body>
+</html>
