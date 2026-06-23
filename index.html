@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TANGO Ver. 1.81 - Bilingual Vocab Builder</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Canvas Confetti (花火アニメーション用ライブラリ) -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.8.0/dist/confetti.browser.min.js"></script>
+    <style>
+        .card-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
+        .hidden { display: none !important; }
+        .btn-srs { transition: all 0.2s ease; }
+        .btn-srs:active { transform: scale(0.95); }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans p-2 relative">
+
+    <div id="app" class="max-w-xl mx-auto py-2">
+        
+        <!-- Header -->
+        <header class="relative text-center mb-6 mt-2">
+            <button id="open-guide-btn" class="absolute right-0 top-0 text-[11px] text-slate-500 hover:text-blue-600 font-bold flex items-center gap-1 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                使い方 / Guide
+            </button>
+            <h1 class="text-3xl font-extrabold text-blue-600 tracking-tight">TANGO</h1>
+            <p class="text-xs text-slate-500 mt-1">単語帳 / Vocab Builder</p>
+        </header>
+
+        <!-- Home Screen -->
+        <div id="home-screen" class="space-y-4">
+            
+            <!-- Learning Settings -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                <div class="mb-4">
+                    <h2 class="text-sm font-bold text-slate-700 mb-2">表示モード / Display Mode</h2>
+                    <div class="flex bg-slate-100 p-1 rounded-xl gap-1">
+                        <button class="mode-btn flex-1 py-2 text-xs font-bold rounded-lg transition-all bg-white text-blue-600 shadow-sm" data-mode="hidden">All Hidden</button>
+                        <button class="mode-btn flex-1 py-2 text-xs font-bold rounded-lg transition-all text-slate-500 hover:bg-white/50" data-mode="cloze">Cloze</button>
+                        <button class="mode-btn flex-1 py-2 text-xs font-bold rounded-lg transition-all text-slate-500 hover:bg-white/50" data-mode="hint">Hint</button>
+                    </div>
+                </div>
+
+                <div class="mb-5">
+                    <h2 class="text-sm font-bold text-slate-700 mb-2">ユニット選択 / Select Unit</h2>
+                    <select id="unit-select" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3 outline-none font-medium appearance-none">
+                        <option value="">-- 全て / All Units --</option>
+                    </select>
+                </div>
+
+                <button id="start-btn" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-4 rounded-xl shadow-md transition-all active:scale-95 text-lg flex items-center justify-center gap-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    学習開始 / Start Session
+                </button>
+            </div>
+
+            <!-- Resume Session Notice -->
+            <div id="resume-container" class="hidden bg-orange-50 border border-orange-200 p-4 rounded-2xl">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-bold text-orange-800 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        セッション管理 / Session Info
+                    </h3>
+                    <button id="clear-session-btn" class="text-xs text-orange-600 hover:text-orange-800 underline">破棄 / Clear</button>
+                </div>
+                <p id="session-info" class="text-sm text-orange-700 mb-3"></p>
+                <button id="resume-btn" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl shadow-sm transition-all active:scale-95">
+                    続きから再開 / Resume Session
+                </button>
+            </div>
+
+            <!-- Manage Units Accordion -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <button id="toggle-manage-btn" class="w-full p-4 flex justify-between items-center bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <span class="font-bold text-slate-700 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        ユニット管理 / Manage Units
+                    </span>
+                    <svg id="manage-icon" class="w-5 h-5 text-slate-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                
+                <div id="manage-content" class="hidden p-4 border-t border-slate-100">
+                    <div id="unit-list" class="space-y-2 mb-6">
+                        <!-- Units will be listed here -->
+                    </div>
+
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <h3 class="font-bold text-slate-800 mb-1 text-sm">ユニットの追加・編集 / Add & Edit Units</h3>
+                        
+                        <div class="mb-3">
+                            <label class="block text-xs text-slate-500 mb-1">ファイル読み込み / Load File (.txt)</label>
+                            <div class="flex gap-2">
+                                <input type="file" id="file-input" accept=".txt" class="block w-full text-sm text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                                <button id="load-file-btn" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap active:scale-95">読込 / Load</button>
+                            </div>
+                        </div>
+
+                        <label class="block text-xs text-slate-500 mb-1">マニュアル入力・編集 / Manual Input & Edit</label>
+                        <p class="text-[10px] text-slate-400 mb-1">フォーマット / Format: Word・Pron・Meaning : Sentence | Translation</p>
+                        <textarea id="manual-input" rows="4" class="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-blue-500 focus:border-blue-500 outline-none font-mono mb-2" placeholder="apple・æpl・りんご : I ate an apple. | 私はりんごを食べた。"></textarea>
+                        
+                        <div class="flex gap-2">
+                            <select id="edit-unit-select" class="flex-1 border border-slate-200 rounded-lg text-xs p-2 outline-none bg-white">
+                                <option value="new">+ 新規ユニット / New Unit</option>
+                            </select>
+                            <button id="save-manual-btn" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap shadow-sm active:scale-95">保存 / Save</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mastered List Accordion -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-4">
+                <button id="toggle-mastered-btn" class="w-full p-4 flex justify-between items-center bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <span class="font-bold text-slate-700 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path></svg>
+                        習得済み / Mastered
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <span id="total-mastered" class="text-xs font-bold bg-green-100 text-green-700 px-2 py-1 rounded-full">0</span>
+                        <svg id="mastered-icon" class="w-5 h-5 text-slate-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                </button>
+                
+                <div id="mastered-content" class="hidden p-4 border-t border-slate-100">
+                    <div class="mb-3">
+                        <select id="mastered-unit-filter" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg p-2 outline-none appearance-none">
+                            <option value="">-- 全て / All Units --</option>
+                        </select>
+                    </div>
+                    <div id="mastered-list" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                        <!-- Mastered items will be listed here -->
+                        <p class="text-sm text-slate-400 text-center py-4">なし / None</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Accordion -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-4">
+                <button id="toggle-settings-btn" class="w-full p-4 flex justify-between items-center bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <span class="font-bold text-slate-700 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        設定 / Settings
+                    </span>
+                    <svg id="settings-icon" class="w-5 h-5 text-slate-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                
+                <div id="settings-content" class="hidden p-4 border-t border-slate-100">
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">音声設定 / Voice Settings</label>
+                    <select id="voice-select" class="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none">
+                        <option value="en-US-female">English (Female)</option>
+                        <option value="en-US-male">English (Male)</option>
+                        <option value="en-GB-female">English UK (Female)</option>
+                        <option value="ja-JP-female">日本語 (女性)</option>
+                        <option value="ja-JP-male">日本語 (男性)</option>
+                        <option value="zh-CN-female">中文 (女性)</option>
+                    </select>
+
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 mt-4">データ管理 / Data Management</label>
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <button id="export-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1 active:scale-95">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            バックアップ / Backup
+                        </button>
+                        <button class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1 relative active:scale-95">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                            復元 / Restore
+                            <input type="file" id="import-input" accept=".json" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        </button>
+                    </div>
+                    <button id="reset-btn" class="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold py-2 px-3 rounded-lg mt-2 active:scale-95">
+                        全データ初期化 / Reset All Data
+                    </button>
+                </div>
+            </div>
+
+            <!-- Footer App Info -->
+            <div class="text-center mt-8 pb-4">
+                <p class="text-[10px] text-slate-400">TANGO Ver. 1.81 Bilingual</p>
+                <p class="text-[10px] text-slate-400">Spaced Repetition System</p>
+            </div>
+
+        </div>
+
+        <!-- Study Screen -->
+        <div id="study-screen" class="hidden flex flex-col h-[90vh]">
+            
+            <!-- Top Bar -->
+            <div class="flex justify-between items-center mb-4 px-1">
+                <button id="end-session-btn" class="text-slate-400 hover:text-slate-600 transition-colors p-1 active:scale-95">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+                <div class="flex items-center gap-2 text-xs font-bold text-slate-500 bg-white px-3 py-1 rounded-full shadow-sm border border-slate-100">
+                    <span id="progress-text">残り / Remaining: 0</span>
+                    <div class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                        <div id="progress-bar-fill" class="h-full bg-blue-500 transition-all duration-300 w-0"></div>
+                    </div>
+                </div>
+                <button id="speak-btn" class="text-blue-500 hover:text-blue-600 transition-colors p-1 active:scale-95 bg-blue-50 rounded-full w-8 h-8 flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M11 5L6 9H2v6h4l5 4V5z"></path></svg>
+                </button>
+            </div>
+
+            <!-- Flashcard -->
+            <div class="flex-1 flex flex-col items-center justify-center relative w-full perspective-1000">
+                <div id="flashcard" class="w-full bg-white rounded-3xl p-8 card-shadow border border-slate-100 relative overflow-hidden transition-all duration-300 transform min-h-[300px] flex flex-col justify-center">
+                    
+                    <!-- Decorative element -->
+                    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
+
+                    <!-- Question Side -->
+                    <div id="question-side" class="text-center w-full">
+                        <div id="display-sentence" class="text-xl md:text-2xl font-bold text-slate-800 leading-snug mb-6 whitespace-pre-wrap"></div>
+                    </div>
+
+                    <!-- Answer Side (Hidden initially) -->
+                    <div id="answer-side" class="hidden text-center w-full animate-fade-in">
+                        <div class="w-full h-px bg-slate-100 my-4"></div>
+                        <div id="target-word" class="text-3xl font-extrabold text-blue-600 mb-1"></div>
+                        <div id="pronunciation" class="text-sm text-slate-400 font-mono mb-4"></div>
+                        <div id="meaning" class="text-lg font-bold text-slate-700 mb-6 bg-slate-50 py-2 px-4 rounded-xl inline-block"></div>
+                        
+                        <div class="w-full h-px bg-slate-100 my-4"></div>
+                        <div id="translation" class="text-sm text-slate-500 leading-relaxed text-left"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="mt-6 pb-4">
+                <button id="show-answer-btn" class="w-full bg-slate-800 hover:bg-slate-900 active:bg-black text-white font-bold py-4 rounded-xl shadow-md transition-all active:scale-95 text-lg">
+                    答えを見る / Show Answer
+                </button>
+
+                <div id="srs-controls" class="hidden grid grid-cols-4 gap-2">
+                    <button class="btn-srs bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-bold py-3 rounded-xl text-xs sm:text-sm flex flex-col items-center" data-val="again">
+                        <span>Again</span><span class="text-[10px] font-normal opacity-70">1m</span>
+                    </button>
+                    <button class="btn-srs bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-600 font-bold py-3 rounded-xl text-xs sm:text-sm flex flex-col items-center" data-val="hard">
+                        <span>Hard</span><span class="text-[10px] font-normal opacity-70">10m</span>
+                    </button>
+                    <button class="btn-srs bg-green-50 hover:bg-green-100 border border-green-200 text-green-600 font-bold py-3 rounded-xl text-xs sm:text-sm flex flex-col items-center" data-val="good">
+                        <span>Good</span><span class="text-[10px] font-normal opacity-70">1d</span>
+                    </button>
+                    <button class="btn-srs bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-600 font-bold py-3 rounded-xl text-xs sm:text-sm flex flex-col items-center" data-val="easy">
+                        <span>Easy</span><span class="text-[10px] font-normal opacity-70">4d</span>
+                    </button>
+                    <div class="col-span-4 mt-2">
+                        <button class="btn-srs w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2 rounded-xl text-xs border border-slate-200" data-val="mastered">
+                            完全に覚えた (除外) / Mastered (Exclude)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session Complete Screen -->
+        <div id="session-complete-screen" class="hidden flex flex-col items-center justify-center min-h-[60vh] px-4">
+            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6 shadow-sm">
+                <svg class="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <h2 id="session-complete-title" class="text-3xl font-extrabold text-slate-800 mb-3 text-center">学習完了！ / Session Complete!</h2>
+            <p id="session-complete-msg" class="text-slate-500 mb-6 font-medium text-center">今日の学習が終了しました。 / Today's learning is done.</p>
+            
+            <!-- Random Phrase -->
+            <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-8 text-center max-w-sm w-full shadow-sm">
+                <p class="text-[10px] text-blue-500 font-bold mb-1 uppercase tracking-wider">Today's Phrase</p>
+                <p id="random-phrase-en" class="text-lg font-bold text-slate-700 mb-1">It takes two to tango.</p>
+                <p id="random-phrase-ja" class="text-sm text-slate-500">協力が必要 / 責任は両方にある</p>
+            </div>
+
+            <button id="back-home-btn" class="w-full max-w-sm bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-4 rounded-xl shadow-md transition-all active:scale-95">
+                ホームに戻る / Back to Home
+            </button>
+        </div>
+
+        <!-- Guide Modal -->
+        <div id="guide-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 opacity-0 transition-opacity duration-300">
+            <div class="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[85vh] overflow-hidden flex flex-col transform scale-95 transition-transform duration-300" id="guide-modal-content">
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        使い方 / How to use
+                    </h2>
+                    <button id="close-guide-btn" class="text-slate-400 hover:text-slate-600 p-1 bg-white rounded-full shadow-sm">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div class="p-5 overflow-y-auto space-y-5 text-sm text-slate-700 leading-relaxed bg-white">
+                    <div>
+                        <h3 class="font-bold text-blue-600 mb-1">1. カードの作成 / Creating Cards</h3>
+                        <p>「ユニット管理」からテキストを直接入力するか、txtファイルを読み込みます。<br>
+                        <span class="text-slate-500">Enter text directly from "Manage Units" or load a .txt file.</span><br>
+                        フォーマットは以下の通りです。<br>(Format: Target・Pron・Meaning : Sentence | Translation)</p>
+                        <div class="bg-slate-50 p-2 rounded-lg font-mono text-xs mt-2 border border-slate-200">
+                            apple・æpl・りんご : I ate an apple. | 私はりんごを食べた。<br>
+                            grape・・ぶどう : He likes grapes. | 彼はぶどうが好きだ。<br>
+                            <span class="text-[10px] text-slate-400">※発音記号がない場合は間を空けます(・・) / Leave blank if no pronunciation (・・)</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-blue-600 mb-1">2. 表示モード / Display Mode</h3>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <li><b>All Hidden:</b> ターゲット単語を完全に隠します。<br><span class="text-slate-500 text-xs">Completely hide the target word.</span></li>
+                            <li><b>Cloze:</b> 例文中のターゲット単語部分を「___」にします。<br><span class="text-slate-500 text-xs">Replace the target word in the sentence with "___".</span></li>
+                            <li><b>Hint:</b> ターゲット単語の頭文字だけを表示します(例: a___)。<br><span class="text-slate-500 text-xs">Show only the first letter of the target word (e.g., a___).</span></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-blue-600 mb-1">3. 復習アルゴリズム / Spaced Repetition</h3>
+                        <p>答えを見た後、ボタンを選んで次回の復習タイミングを決定します。<br>
+                        <span class="text-slate-500">Choose a button after seeing the answer to determine the next review time.</span><br>
+                        完全に覚えた単語は「Mastered」にすると出題されなくなります。<br>
+                        <span class="text-slate-500">Words marked as "Mastered" will no longer appear.</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- State Management ---
+        let db = {
+            units: {},
+            settings: { voice: 'en-US-female', defaultMode: 'hidden' },
+            masteredMilestone: 10 // 次にお祝いする目標数
+        };
+        let currentMode = 'hidden';
+        let sessionQueue = [];
+        let sessionTotal = 0;
+        let currentCardInfo = null;
+        let currentSessionMode = 'hidden';
+        let currentSessionUnit = '';
+
+        // DOM Elements
+        const homeScreen = document.getElementById('home-screen');
+        const studyScreen = document.getElementById('study-screen');
+        const completeScreen = document.getElementById('session-complete-screen');
+        
+        // Modal logic
+        const guideModal = document.getElementById('guide-modal');
+        const guideModalContent = document.getElementById('guide-modal-content');
+        
+        document.getElementById('open-guide-btn').addEventListener('click', () => {
+            guideModal.classList.remove('hidden');
+            setTimeout(() => {
+                guideModal.classList.remove('opacity-0');
+                guideModalContent.classList.remove('scale-95');
+            }, 10);
+        });
+
+        document.getElementById('close-guide-btn').addEventListener('click', closeGuide);
+        guideModal.addEventListener('click', (e) => {
+            if(e.target === guideModal) closeGuide();
+        });
+
+        function closeGuide() {
+            guideModal.classList.add('opacity-0');
+            guideModalContent.classList.add('scale-95');
+            setTimeout(() => {
+                guideModal.classList.add('hidden');
+            }, 300);
+        }
+
+        // --- Initialization ---
+        window.onload = () => {
+            loadData();
+            initUI();
+            checkSessionResume();
+            updateMasteredMilestoneCheck();
+        };
+
+        function loadData() {
+            const saved = localStorage.getItem('tango_data_v1_8');
+            if (saved) {
+                try {
+                    db = JSON.parse(saved);
+                    // 互換性チェック
+                    if(!db.settings) db.settings = { voice: 'en-US-female', defaultMode: 'hidden' };
+                    if(!db.masteredMilestone) db.masteredMilestone = 10;
+                } catch(e) { console.error("Data parse error", e); }
+            }
+            currentMode = db.settings.defaultMode || 'hidden';
+        }
+
+        function saveData() {
+            localStorage.setItem('tango_data_v1_8', JSON.stringify(db));
+        }
+
+        function initUI() {
+            // Mode buttons
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.mode-btn').forEach(b => {
+                        b.classList.remove('bg-white', 'text-blue-600', 'shadow-sm');
+                        b.classList.add('text-slate-500');
+                    });
+                    e.target.classList.remove('text-slate-500');
+                    e.target.classList.add('bg-white', 'text-blue-600', 'shadow-sm');
+                    currentMode = e.target.dataset.mode;
+                    db.settings.defaultMode = currentMode;
+                    saveData();
+                });
+                if(btn.dataset.mode === currentMode) btn.click();
+            });
+
+            // Settings
+            document.getElementById('voice-select').value = db.settings.voice || 'en-US-female';
+            document.getElementById('voice-select').addEventListener('change', (e) => {
+                db.settings.voice = e.target.value;
+                saveData();
+            });
+
+            renderUnitSelect();
+            renderUnitManagement();
+            renderMasteredList();
+            setupAccordions();
+        }
+
+        // --- Accordions ---
+        function setupAccordions() {
+            const toggle = (btnId, contentId, iconId) => {
+                document.getElementById(btnId).addEventListener('click', () => {
+                    const content = document.getElementById(contentId);
+                    const icon = document.getElementById(iconId);
+                    if (content.classList.contains('hidden')) {
+                        content.classList.remove('hidden');
+                        icon.style.transform = 'rotate(180deg)';
+                    } else {
+                        content.classList.add('hidden');
+                        icon.style.transform = 'rotate(0deg)';
+                    }
+                });
+            };
+            toggle('toggle-manage-btn', 'manage-content', 'manage-icon');
+            toggle('toggle-settings-btn', 'settings-content', 'settings-icon');
+            toggle('toggle-mastered-btn', 'mastered-content', 'mastered-icon');
+        }
+
+        // --- Data Parsing & Management ---
+        function parseTextData(text) {
+            const lines = text.split('\n');
+            const cards = [];
+            lines.forEach(line => {
+                if (!line.trim() || !line.includes(':') || !line.includes('|')) return;
+                try {
+                    // 形式: ターゲット・発音・意味 : 例文 | 訳
+                    const [front, back] = line.split(':');
+                    const [targetRaw, pron, meaning] = front.split('・').map(s => s.trim());
+                    const [sentence, translation] = back.split('|').map(s => s.trim());
+                    
+                    if (targetRaw && sentence) {
+                        cards.push({
+                            targetRaw,
+                            pron: pron || '',
+                            meaning: meaning || '',
+                            sentence,
+                            translation,
+                            nextReview: 0, // すぐに復習対象
+                            interval: 0,
+                            mastered: false
+                        });
+                    }
+                } catch(e) {}
+            });
+            return cards;
+        }
+
+        document.getElementById('save-manual-btn').addEventListener('click', () => {
+            const text = document.getElementById('manual-input').value;
+            const selectVal = document.getElementById('edit-unit-select').value;
+            
+            if (!text.trim()) {
+                alert("入力が空です。 / Input is empty.");
+                return;
+            }
+
+            let unitName = selectVal;
+            if (selectVal === 'new') {
+                unitName = prompt("新しいユニット名を入力してください: / Enter new unit name:", "Unit " + (Object.keys(db.units).length + 1));
+                if (!unitName) return;
+            }
+
+            const newCards = parseTextData(text);
+            if (newCards.length === 0) {
+                alert("正しいフォーマットのデータが見つかりません。 / No valid data found.");
+                return;
+            }
+
+            if (!db.units[unitName]) db.units[unitName] = [];
+            
+            // 既存のデータとマージ (重複は単純追加とする仕様)
+            db.units[unitName] = [...db.units[unitName], ...newCards];
+            saveData();
+            
+            document.getElementById('manual-input').value = '';
+            renderUnitSelect();
+            renderUnitManagement();
+            alert(`「${unitName}」を保存しました！(${newCards.length}語)\nSaved '${unitName}'! (${newCards.length} words)`);
+        });
+
+        document.getElementById('load-file-btn').addEventListener('click', () => {
+            const file = document.getElementById('file-input').files[0];
+            if (!file) {
+                alert("ファイルを選択してください。 / Please select a file.");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                document.getElementById('manual-input').value = text;
+            };
+            reader.readAsText(file);
+        });
+
+        function renderUnitSelect() {
+            const select1 = document.getElementById('unit-select');
+            const select2 = document.getElementById('edit-unit-select');
+            
+            select1.innerHTML = '<option value="">-- 全て / All Units --</option>';
+            select2.innerHTML = '<option value="new">+ 新規ユニット / New Unit</option>';
+
+            Object.keys(db.units).forEach(unit => {
+                // 習得済みを除いた数
+                const activeCount = db.units[unit].filter(c => !c.mastered).length;
+                
+                const opt1 = document.createElement('option');
+                opt1.value = unit;
+                opt1.textContent = `${unit} (${activeCount} 語)`;
+                select1.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = unit;
+                opt2.textContent = unit;
+                select2.appendChild(opt2);
+            });
+        }
+
+        function renderUnitManagement() {
+            const container = document.getElementById('unit-list');
+            container.innerHTML = '';
+
+            if (Object.keys(db.units).length === 0) {
+                container.innerHTML = '<p class="text-sm text-slate-400 text-center py-2">ユニットがありません / No units</p>';
+                return;
+            }
+
+            Object.keys(db.units).forEach(unit => {
+                const total = db.units[unit].length;
+                const mastered = db.units[unit].filter(c => c.mastered).length;
+                
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm';
+                div.innerHTML = `
+                    <div class="flex-1 min-w-0 pr-2">
+                        <div class="font-bold text-slate-800 text-sm truncate">${unit}</div>
+                        <div class="text-[10px] text-slate-500">Total: ${total} | Mastered: ${mastered}</div>
+                    </div>
+                    <div class="flex gap-1 flex-shrink-0">
+                        <button class="rename-btn bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1.5 rounded-lg text-xs font-bold active:scale-95" data-unit="${unit}">名称変更 / Rename</button>
+                        <button class="delete-btn bg-red-50 hover:bg-red-100 text-red-500 px-2 py-1.5 rounded-lg text-xs font-bold active:scale-95" data-unit="${unit}">削除 / Delete</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const unit = e.target.dataset.unit;
+                    if (confirm(`ユニット「${unit}」を削除してもよろしいですか？\nAre you sure you want to delete unit '${unit}'?`)) {
+                        delete db.units[unit];
+                        saveData();
+                        renderUnitSelect();
+                        renderUnitManagement();
+                        renderMasteredList();
+                    }
+                });
+            });
+
+            document.querySelectorAll('.rename-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const unit = e.target.dataset.unit;
+                    const newName = prompt("新しいユニット名: / New unit name:", unit);
+                    if (newName && newName !== unit && !db.units[newName]) {
+                        db.units[newName] = db.units[unit];
+                        delete db.units[unit];
+                        saveData();
+                        renderUnitSelect();
+                        renderUnitManagement();
+                        renderMasteredList();
+                    }
+                });
+            });
+        }
+
+        // --- Data Export / Import ---
+        document.getElementById('export-btn').addEventListener('click', () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "tango_backup.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        });
+
+        document.getElementById('import-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const imported = JSON.parse(event.target.result);
+                    if (imported.units) {
+                        db = imported;
+                        saveData();
+                        initUI();
+                        alert("復元完了 / Restore complete.");
+                    } else {
+                        alert("無効なファイルです / Invalid file format.");
+                    }
+                } catch (err) {
+                    alert("JSONの解析に失敗しました / Failed to parse JSON.");
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            if (confirm("全データを削除しますか？\nDelete all data? This cannot be undone.")) {
+                localStorage.removeItem('tango_data_v1_8');
+                localStorage.removeItem('tango_session_v1_8');
+                db = { units: {}, settings: { voice: 'en-US-female', defaultMode: 'hidden' }, masteredMilestone: 10 };
+                sessionQueue = [];
+                initUI();
+                checkSessionResume();
+                alert("初期化完了 / Data reset complete.");
+            }
+        });
+
+        // --- Session Management ---
+        function checkSessionResume() {
+            const savedSession = localStorage.getItem('tango_session_v1_8');
+            const resumeContainer = document.getElementById('resume-container');
+            
+            if (savedSession) {
+                try {
+                    const sessionData = JSON.parse(savedSession);
+                    if (sessionData.queue && sessionData.queue.length > 0) {
+                        sessionQueue = sessionData.queue;
+                        sessionTotal = sessionData.total;
+                        currentSessionMode = sessionData.mode;
+                        currentSessionUnit = sessionData.unit;
+                        
+                        document.getElementById('session-info').innerHTML = `
+                            <span class="text-blue-600 font-bold">${sessionQueue.length}</span> 個の未完了タスクがあります / pending reviews.<br>
+                            <span class="text-xs text-slate-500">Mode: ${currentSessionMode} | Unit: ${currentSessionUnit || 'All'}</span>
+                        `;
+                        resumeContainer.classList.remove('hidden');
+                        return;
+                    }
+                } catch(e) {}
+            }
+            resumeContainer.classList.add('hidden');
+        }
+
+        document.getElementById('clear-session-btn').addEventListener('click', () => {
+            localStorage.removeItem('tango_session_v1_8');
+            checkSessionResume();
+        });
+
+        document.getElementById('resume-btn').addEventListener('click', () => {
+            startStudyUI();
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            const selectedUnit = document.getElementById('unit-select').value;
+            let cardsToReview = [];
+            const now = Date.now();
+
+            if (selectedUnit) {
+                if (!db.units[selectedUnit]) {
+                    alert('ユニットが見つかりません。 / Unit not found.');
+                    return;
+                }
+                cardsToReview = db.units[selectedUnit]
+                    .map((card, idx) => ({ ...card, unit: selectedUnit, origIndex: idx }))
+                    .filter(c => !c.mastered && c.nextReview <= now);
+            } else {
+                // All units
+                Object.keys(db.units).forEach(unit => {
+                    db.units[unit].forEach((card, idx) => {
+                        if (!card.mastered && card.nextReview <= now) {
+                            cardsToReview.push({ ...card, unit, origIndex: idx });
+                        }
+                    });
+                });
+            }
+
+            if (cardsToReview.length === 0) {
+                alert('学習する単語がありません（すべて習得済みか、復習時期になっていません）。\nNo words to review (all mastered or not due yet).');
+                return;
+            }
+
+            // Shuffle
+            cardsToReview.sort(() => Math.random() - 0.5);
+
+            sessionQueue = cardsToReview;
+            sessionTotal = cardsToReview.length;
+            currentSessionMode = currentMode;
+            currentSessionUnit = selectedUnit;
+            
+            saveSession();
+            startStudyUI();
+        });
+
+        function saveSession() {
+            if (sessionQueue.length > 0) {
+                localStorage.setItem('tango_session_v1_8', JSON.stringify({
+                    queue: sessionQueue,
+                    total: sessionTotal,
+                    mode: currentSessionMode,
+                    unit: currentSessionUnit
+                }));
+            } else {
+                localStorage.removeItem('tango_session_v1_8');
+            }
+        }
+
+        function startStudyUI() {
+            homeScreen.classList.add('hidden');
+            completeScreen.classList.add('hidden');
+            studyScreen.classList.remove('hidden');
+            document.getElementById('resume-container').classList.add('hidden');
+            nextCard();
+        }
+
+        document.getElementById('end-session-btn').addEventListener('click', () => {
+            saveSession();
+            studyScreen.classList.add('hidden');
+            homeScreen.classList.remove('hidden');
+            checkSessionResume();
+            renderUnitSelect();
+        });
+
+        // --- Study Logic ---
+        function nextCard() {
+            if (sessionQueue.length === 0) {
+                showSessionComplete();
+                return;
+            }
+
+            currentCardInfo = sessionQueue[0]; // Peek at the first item
+            updateProgressBar();
+
+            const qSide = document.getElementById('question-side');
+            const aSide = document.getElementById('answer-side');
+            const srsControls = document.getElementById('srs-controls');
+            const showBtn = document.getElementById('show-answer-btn');
+            const displaySentence = document.getElementById('display-sentence');
+
+            aSide.classList.add('hidden');
+            srsControls.classList.add('hidden');
+            showBtn.classList.remove('hidden');
+
+            // ターゲット単語を文中でどう見せるか (Modeによって分岐)
+            let formattedSentence = currentCardInfo.sentence;
+            const target = currentCardInfo.targetRaw;
+            
+            // 簡単な置換 (大文字小文字区別せず置換)
+            const regex = new RegExp(target, 'gi');
+
+            if (currentSessionMode === 'hidden') {
+                formattedSentence = formattedSentence.replace(regex, '___');
+            } else if (currentSessionMode === 'cloze') {
+                formattedSentence = formattedSentence.replace(regex, '<span class="border-b-2 border-slate-300 text-transparent">___</span>');
+            } else if (currentSessionMode === 'hint') {
+                formattedSentence = formattedSentence.replace(regex, (match) => {
+                    return match.charAt(0) + '___';
+                });
+            }
+
+            displaySentence.innerHTML = formattedSentence;
+
+            document.getElementById('target-word').innerText = target;
+            document.getElementById('pronunciation').innerText = currentCardInfo.pron ? `/${currentCardInfo.pron}/` : '';
+            document.getElementById('meaning').innerText = currentCardInfo.meaning;
+            document.getElementById('translation').innerText = currentCardInfo.translation;
+        }
+
+        function updateProgressBar() {
+            const total = sessionTotal;
+            const remaining = sessionQueue.length;
+            const done = total - remaining;
+            const pct = total === 0 ? 100 : Math.round((done / total) * 100);
+            
+            document.getElementById('progress-bar-fill').style.width = `${pct}%`;
+            document.getElementById('progress-text').innerText = `残り / Remaining: ${remaining}`;
+        }
+
+        document.getElementById('show-answer-btn').addEventListener('click', () => {
+            document.getElementById('show-answer-btn').classList.add('hidden');
+            document.getElementById('answer-side').classList.remove('hidden');
+            document.getElementById('srs-controls').classList.remove('hidden');
+            
+            // 答えを表示したときに文の空白を埋める
+            const target = currentCardInfo.targetRaw;
+            const regex = new RegExp(target, 'gi');
+            const sentence = currentCardInfo.sentence.replace(regex, `<span class="text-blue-600 bg-blue-50 px-1 rounded">${target}</span>`);
+            document.getElementById('display-sentence').innerHTML = sentence;
+        });
+
+        document.querySelectorAll('.btn-srs').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const val = e.currentTarget.dataset.val;
+                handleSRS(val);
+            });
+        });
+
+        function handleSRS(grade) {
+            const card = sessionQueue.shift(); // Remove from queue
+            const now = Date.now();
+            let minToAdd = 0;
+
+            const dbCard = db.units[card.unit][card.origIndex];
+
+            if (grade === 'mastered') {
+                dbCard.mastered = true;
+                dbCard.nextReview = 2147483647000; // Far future
+                checkMasteredMilestone(); // マイルストーンチェック
+            } else {
+                if (grade === 'again') minToAdd = 1;
+                else if (grade === 'hard') minToAdd = 10;
+                else if (grade === 'good') minToAdd = 60 * 24; // 1 day
+                else if (grade === 'easy') minToAdd = 60 * 24 * 4; // 4 days
+
+                dbCard.nextReview = now + (minToAdd * 60 * 1000);
+                
+                // Againの場合はキューの最後に追加して同じセッション内で再出題
+                if (grade === 'again') {
+                    sessionQueue.push(card);
+                }
+            }
+
+            saveData();
+            saveSession();
+            nextCard();
+        }
+
+        const completePhrases = [
+            { en: "It takes two to tango.", ja: "協力が必要 / 責任は両方にある" },
+            { en: "Practice makes perfect.", ja: "継続は力なり" },
+            { en: "Rome was not built in a day.", ja: "ローマは一日にして成らず" },
+            { en: "A piece of cake.", ja: "朝飯前 / 楽勝" },
+            { en: "Every cloud has a silver lining.", ja: "どんな不幸にも良い面がある" },
+            { en: "Where there is a will, there is a way.", ja: "意志あるところに道は開ける" },
+            { en: "Better late than never.", ja: "遅れてもやらないよりはマシ" },
+            { en: "Time is money.", ja: "時は金なり" },
+            { en: "So far, so good.", ja: "今のところ順調" },
+            { en: "Hang in there!", ja: "頑張って！ / 持ちこたえて！" }
+        ];
+
+        function showSessionComplete() {
+            studyScreen.classList.add('hidden');
+            completeScreen.classList.remove('hidden');
+            document.getElementById('session-complete-title').innerText = "学習完了！ / Session Complete!";
+            document.getElementById('session-complete-msg').innerText = "今日の学習が終了しました。 / Today's learning is done.";
+            
+            // Random Phrase logic
+            const phrase = completePhrases[Math.floor(Math.random() * completePhrases.length)];
+            document.getElementById('random-phrase-en').innerText = phrase.en;
+            document.getElementById('random-phrase-ja').innerText = phrase.ja;
+            
+            localStorage.removeItem('tango_session_v1_8');
+            renderUnitSelect(); // 復習対象が減ったことを反映
+            renderMasteredList(); // マスター数反映
+            
+            // Confetti
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+        }
+
+        document.getElementById('back-home-btn').addEventListener('click', () => {
+            completeScreen.classList.add('hidden');
+            homeScreen.classList.remove('hidden');
+            checkSessionResume();
+        });
+
+        // --- TTS (Web Speech API) ---
+        document.getElementById('speak-btn').addEventListener('click', () => {
+            if (!currentCardInfo) return;
+            
+            // 英文を読み上げる
+            const textToSpeak = currentCardInfo.sentence;
+            const msg = new SpeechSynthesisUtterance(textToSpeak);
+            
+            const selectedVoiceId = db.settings.voice;
+            const voices = window.speechSynthesis.getVoices();
+            
+            // 簡易的な声のマッピング
+            let lang = 'en-US';
+            let preferFemale = selectedVoiceId.includes('female');
+            
+            if (selectedVoiceId.includes('en-GB')) lang = 'en-GB';
+            else if (selectedVoiceId.includes('ja-JP')) lang = 'ja-JP';
+            else if (selectedVoiceId.includes('zh-CN')) lang = 'zh-CN';
+
+            const matchedVoices = voices.filter(v => v.lang.startsWith(lang) || v.lang.replace('_','-').startsWith(lang));
+            
+            if (matchedVoices.length > 0) {
+                // 名前で男女を推測する簡易ロジック（環境依存）
+                let selectedVoice = matchedVoices[0];
+                for (let v of matchedVoices) {
+                    const name = v.name.toLowerCase();
+                    if (preferFemale && (name.includes('female') || name.includes('woman') || name.includes('girl') || name.includes('samantha') || name.includes('kyoko'))) {
+                        selectedVoice = v; break;
+                    }
+                    if (!preferFemale && (name.includes('male') || name.includes('man') || name.includes('boy') || name.includes('alex') || name.includes('ichiro'))) {
+                        selectedVoice = v; break;
+                    }
+                }
+                msg.voice = selectedVoice;
+            } else {
+                msg.lang = lang; // フォールバック
+            }
+            
+            window.speechSynthesis.speak(msg);
+        });
+
+        // Ensure voices are loaded
+        window.speechSynthesis.onvoiceschanged = () => {
+            // Voices loaded
+        };
+
+        // --- Mastered Logic & Milestone ---
+        function checkMasteredMilestone() {
+            const currentTotalMastered = getTotalMasteredCount();
+            if (currentTotalMastered >= db.masteredMilestone) {
+                // 目標達成！
+                setTimeout(() => {
+                    fireMilestoneConfetti();
+                    alert(`🎉 おめでとう！ / Congratulations!\n累計習得数が ${db.masteredMilestone} 語に達しました！\nYou have mastered ${db.masteredMilestone} words!`);
+                    // 次の目標を設定
+                    if (db.masteredMilestone < 50) db.masteredMilestone = 50;
+                    else if (db.masteredMilestone < 100) db.masteredMilestone = 100;
+                    else db.masteredMilestone += 100;
+                    saveData();
+                }, 500);
+            }
+        }
+
+        function updateMasteredMilestoneCheck() {
+            // ロード時に目標を超過していないかチェック（後方互換）
+            const count = getTotalMasteredCount();
+            while (count >= db.masteredMilestone) {
+                if (db.masteredMilestone < 50) db.masteredMilestone = 50;
+                else if (db.masteredMilestone < 100) db.masteredMilestone = 100;
+                else db.masteredMilestone += 100;
+                saveData();
+            }
+        }
+
+        function fireMilestoneConfetti() {
+            const duration = 3 * 1000;
+            const animationEnd = Date.now() + duration;
+            const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
+
+            function randomInRange(min, max) {
+                return Math.random() * (max - min) + min;
+            }
+
+            const interval = setInterval(function() {
+                const timeLeft = animationEnd - Date.now();
+
+                if (timeLeft <= 0) {
+                    return clearInterval(interval);
+                }
+
+                const particleCount = 50 * (timeLeft / duration);
+                confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
+                confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
+            }, 250);
+        }
+
+        function getTotalMasteredCount() {
+            let count = 0;
+            Object.values(db.units).forEach(unitCards => {
+                count += unitCards.filter(c => c.mastered).length;
+            });
+            return count;
+        }
+
+        function renderMasteredList() {
+            const container = document.getElementById('mastered-list');
+            const filterSelect = document.getElementById('mastered-unit-filter');
+            const currentUnitFilter = filterSelect.value;
+            
+            container.innerHTML = '';
+            
+            let masteredCount = 0;
+            let unitsWithMastered = new Set();
+            let itemsToRender = [];
+
+            Object.keys(db.units).forEach(unit => {
+                const masteredInUnit = db.units[unit]
+                    .map((item, idx) => ({ ...item, unit, origIndex: idx }))
+                    .filter(c => c.mastered);
+                
+                if (masteredInUnit.length > 0) {
+                    unitsWithMastered.add(unit);
+                    masteredCount += masteredInUnit.length;
+                    if (!currentUnitFilter || currentUnitFilter === unit) {
+                        itemsToRender = itemsToRender.concat(masteredInUnit);
+                    }
+                }
+            });
+
+            document.getElementById('total-mastered').textContent = masteredCount;
+
+            // フィルターセレクトの更新（選択状態を保持）
+            filterSelect.innerHTML = '<option value="">-- 全て / All Units --</option>';
+            unitsWithMastered.forEach(u => {
+                const opt = document.createElement('option');
+                opt.value = u;
+                opt.textContent = u;
+                if (u === currentUnitFilter) opt.selected = true;
+                filterSelect.appendChild(opt);
+            });
+
+            // フィルター変更イベント（再登録されないように注意）
+            filterSelect.onchange = renderMasteredList;
+
+            if (itemsToRender.length === 0) {
+                container.innerHTML = '<p class="text-sm text-slate-400 text-center py-4">なし / None</p>';
+                return;
+            }
+
+            itemsToRender.forEach(item => {
+                const unit = item.unit;
+                const origIndex = item.origIndex;
+                
+                const row = document.createElement('div');
+                row.className = 'flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100';
+                row.innerHTML = `
+                    <div class="flex-1 min-w-0 pr-2">
+                        <div class="text-sm font-bold text-slate-800 truncate">${item.targetRaw}</div>
+                        <div class="text-[10px] text-slate-500 truncate mt-0.5">${item.sentence}</div>
+                        ${!currentUnitFilter ? `<div class="text-[9px] text-blue-500 mt-0.5">[${unit}]</div>` : ''}
+                    </div>
+                    <button class="unmaster-btn flex-shrink-0 px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 active:scale-95 text-slate-600 text-xs font-bold rounded shadow-sm whitespace-nowrap transition-all" data-unit="${unit}" data-index="${origIndex}">
+                        解除/Undo
+                    </button>
+                `;
+                container.appendChild(row);
+            });
+
+            // 解除ボタンのイベント
+            document.querySelectorAll('.unmaster-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const unit = e.currentTarget.dataset.unit;
+                    const idx = e.currentTarget.dataset.index;
+                    if (db.units[unit] && db.units[unit][idx]) {
+                        db.units[unit][idx].mastered = false;
+                        db.units[unit][idx].nextReview = Date.now(); // すぐに復習対象に戻す
+                        saveData();
+                        renderMasteredList(); // リストを再描画
+                        renderUnitSelect();
+                    }
+                });
+            });
+        }
+
+    </script>
+</body>
+</html>
